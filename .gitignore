@@ -1,0 +1,95 @@
+# Foundry
+cache/
+out/
+broadcast/
+!broadcast/README.md
+
+# Environment files
+.env
+.env.local
+.env.production
+.env.staging
+
+# Node modules
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Go
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+avs-operator/bin/
+avs-operator/vendor/
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Go workspace file
+go.work
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Keys and certificates (NEVER COMMIT)
+*.key
+*.key.json
+*.pem
+*.p12
+keys/
+
+# Logs
+*.log
+logs/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Temporary files
+tmp/
+temp/
+.tmp/
+
+# Docker
+.dockerignore
+
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+
+# Coverage reports
+coverage.txt
+coverage.html
+
+# Build artifacts
+dist/
+build/
+
+# Dependency directories
+lib/ # Foundry dependencies are managed via submodules
+
+./context
