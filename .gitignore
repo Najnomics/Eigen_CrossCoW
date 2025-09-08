@@ -92,4 +92,6 @@ build/
 # Dependency directories
 lib/ # Foundry dependencies are managed via submodules
 
-./context
+context/
+
+lib/

@@ -1,0 +1,38 @@
+# CrossCoW AVS Operator Configuration
+
+# Operator Keys
+ecdsa_private_key_store_path: "./keys/operator.ecdsa.key.json"
+bls_private_key_store_path: "./keys/operator.bls.key.json"
+
+# Ethereum Network Configuration
+eth_rpc_url: "https://ethereum-rpc.publicnode.com"
+eth_ws_url: "wss://ethereum-ws.publicnode.com"
+
+# Contract Addresses (These should be updated with actual deployed addresses)
+task_manager_address: "0x0000000000000000000000000000000000000001"
+registry_coordinator_address: "0x0000000000000000000000000000000000000002"
+avs_directory_address: "0x0000000000000000000000000000000000000003"
+stake_registry_address: "0x0000000000000000000000000000000000000004"
+operator_state_retriever_address: "0x0000000000000000000000000000000000000005"
+
+# Aggregator Configuration
+aggregator_server_ip_port_address: "localhost:8090"
+
+# Operator Settings
+register_operator_on_startup: true
+
+# Monitoring and Metrics
+eigen_metrics_ip_port_address: "localhost:9090"
+enable_metrics: true
+
+# Node API
+node_api_ip_port_address: "localhost:9091"
+enable_node_api: true
+
+# CrossCoW Specific Settings
+matching_algorithm: "ai_enhanced"
+enable_ai_matching: true
+database_url: "postgresql://crosscow:password@localhost:5432/crosscow_operator"
+
+# Logging Level
+log_level: "info"

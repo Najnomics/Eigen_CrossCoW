@@ -258,7 +258,7 @@ contract AcrossIntegration is Ownable, ReentrancyGuard {
             
             // Approve Across Hub Pool for spending
             if (token.allowance(address(this), address(acrossHubPool)) < params.inputAmount) {
-                token.safeApprove(address(acrossHubPool), MAX_UINT256);
+                token.forceApprove(address(acrossHubPool), MAX_UINT256);
             }
         }
     }
