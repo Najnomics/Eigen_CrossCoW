@@ -8,6 +8,7 @@ import (
 
 	"github.com/Layr-Labs/eigensdk-go/logging"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/eigencrosscow/avs/contracts/bindings/CrossCoWTaskManager"
 )
 
 type MatchingEngine struct {
@@ -464,4 +465,93 @@ func (me *MatchingEngine) runAIPrediction(features []float64) AIPrediction {
 
 func (me *MatchingEngine) GetStats() *MatchingStats {
 	return me.matchingStats
+}
+
+// Helper functions for proper matching
+func (me *MatchingEngine) calculateBridgeFee(amount *big.Int, sourceChain, destChain uint32) *big.Int {
+	// Basic bridge fee calculation - 0.1% of amount + base fee
+	baseFee := big.NewInt(1000000000000000) // 0.001 ETH base fee
+	percentageFee := new(big.Int).Div(amount, big.NewInt(1000)) // 0.1%
+	return new(big.Int).Add(baseFee, percentageFee)
+}
+
+func (me *MatchingEngine) generateExecutionProof(match *MatchingResult) []byte {
+	// Generate a basic execution proof - in production would be cryptographic proof
+	proofData := fmt.Sprintf("match_%s_%s_%d", 
+		match.TradeA.IntentId.Hex(), 
+		match.TradeB.IntentId.Hex(), 
+		time.Now().Unix())
+	return []byte(proofData)
+}
+
+// FindOptimalMatches finds optimal matches for the given intents
+func (me *MatchingEngine) FindOptimalMatches(intents []CrossCoWTaskManager.Intent, maxSlippage *big.Int) ([]*MatchedTrade, error) {
+	me.logger.Info("Finding optimal matches", "intentCount", len(intents))
+	
+	// Convert intents to TradeIntent format
+	tradeIntents := make([]*TradeIntent, len(intents))
+	for i, intent := range intents {
+		tradeIntents[i] = &TradeIntent{
+			IntentId:     common.BytesToHash([]byte(fmt.Sprintf("intent_%d", i))),
+			User:         intent.User,
+			TokenIn:      intent.InputToken,
+			TokenOut:     intent.OutputToken,
+			AmountIn:     intent.InputAmount,
+			AmountOutMin: intent.MinOutputAmount,
+			Deadline:     uint64(intent.Deadline),
+			OriginChain:  intent.SourceChain,
+			TargetChain:  intent.DestinationChain,
+			IsActive:     true,
+			CreatedAt:    time.Now(),
+			Salt:         common.Hash{},
+		}
+	}
+	
+	// Add intents to pool
+	for _, intent := range tradeIntents {
+		if err := me.AddIntent(intent); err != nil {
+			me.logger.Error("Error adding intent", "err", err)
+			continue
+		}
+	}
+	
+	// Find matches
+	matches := me.findMatches()
+	
+	// Convert to MatchedTrade format - CRITICAL FIX
+	matchedTrades := make([]*MatchedTrade, 0, len(matches))
+	intentIndexMap := make(map[common.Hash]uint32)
+	
+	// Create mapping from intent hash to index
+	for i, intent := range tradeIntents {
+		intentIndexMap[intent.IntentId] = uint32(i)
+	}
+	
+	for _, match := range matches {
+		// Map actual intent IDs to indices
+		intentAIndex, foundA := intentIndexMap[match.TradeA.IntentId]
+		intentBIndex, foundB := intentIndexMap[match.TradeB.IntentId]
+		
+		if !foundA || !foundB {
+			me.logger.Error("Could not map intent IDs to indices", 
+				"intentA", match.TradeA.IntentId.Hex(),
+				"intentB", match.TradeB.IntentId.Hex())
+			continue
+		}
+		
+		// Calculate proper execution amount and bridge fee
+		executionAmount := match.TradeA.AmountIn
+		bridgeFee := me.calculateBridgeFee(executionAmount, match.TradeA.OriginChain, match.TradeB.OriginChain)
+		
+		matchedTrades = append(matchedTrades, &MatchedTrade{
+			IntentAIndex:    intentAIndex,
+			IntentBIndex:    intentBIndex,
+			ExecutionAmount: executionAmount,
+			BridgeFee:       bridgeFee,
+			ExecutionProof:  me.generateExecutionProof(match),
+		})
+	}
+	
+	me.logger.Info("Found matches", "count", len(matchedTrades))
+	return matchedTrades, nil
 }

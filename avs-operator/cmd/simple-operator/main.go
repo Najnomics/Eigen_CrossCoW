@@ -14,7 +14,7 @@ import (
 	"github.com/urfave/cli"
 	"gopkg.in/yaml.v2"
 
-	"../../pkg/operator"
+	"github.com/eigencrosscow/avs/pkg/operator"
 )
 
 var (

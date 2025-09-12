@@ -5,11 +5,11 @@ libs = ["lib"]
 remappings = [
     "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
     "@openzeppelin-upgrades/contracts/=lib/openzeppelin-contracts-upgradeable/contracts/",
-    "@uniswap/v4-core/=lib/v4-core/",
-    "v4-periphery/=lib/v4-periphery/",
-    "@eigenlayer/contracts/=lib/eigenlayer-contracts/src/contracts/",
-    "@eigenlayer-middleware/=lib/eigenlayer-middleware/",
-    "@across-protocol/contracts/=lib/across-protocol/contracts/",
+    "@uniswap/v4-core/=lib/v4-core/src/",
+    "v4-periphery/=lib/v4-periphery/src/",
+    "@eigenlayer/contracts/=lib/eigenlayer-middleware/lib/eigenlayer-contracts/src/contracts/",
+    "@eigenlayer-middleware/=lib/eigenlayer-middleware/src/",
+    "@across-protocol/contracts/=lib/contracts/contracts/",
     "forge-std/=lib/forge-std/src/"
 ]
 

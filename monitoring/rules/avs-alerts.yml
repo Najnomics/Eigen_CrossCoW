@@ -1,0 +1,153 @@
+# EigenCrossCoW AVS Alert Rules
+groups:
+  - name: eigencrosscow-avs
+    rules:
+      # High error rate
+      - alert: HighErrorRate
+        expr: rate(eigencrosscow_errors_total[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value }} errors per second"
+
+      # Low operator count
+      - alert: LowOperatorCount
+        expr: eigencrosscow_active_operators < 2
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low operator count"
+          description: "Only {{ $value }} operators are active"
+
+      # High task processing time
+      - alert: HighTaskProcessingTime
+        expr: histogram_quantile(0.95, rate(eigencrosscow_task_processing_duration_seconds_bucket[5m])) > 300
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High task processing time"
+          description: "95th percentile task processing time is {{ $value }} seconds"
+
+      # Low stake amount
+      - alert: LowTotalStake
+        expr: eigencrosscow_total_stake < 1000000000000000000000  # 1000 ETH
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low total stake"
+          description: "Total stake is {{ $value }} wei"
+
+      # Operator slashed
+      - alert: OperatorSlashed
+        expr: increase(eigencrosscow_operator_slashed_total[1m]) > 0
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Operator slashed"
+          description: "Operator {{ $labels.operator }} was slashed"
+
+      # Task timeout
+      - alert: TaskTimeout
+        expr: increase(eigencrosscow_task_timeout_total[1m]) > 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Task timeout"
+          description: "Task {{ $labels.task_index }} timed out"
+
+      # High gas usage
+      - alert: HighGasUsage
+        expr: rate(eigencrosscow_gas_used_total[5m]) > 1000000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High gas usage"
+          description: "Gas usage rate is {{ $value }} gas per second"
+
+      # Low task success rate
+      - alert: LowTaskSuccessRate
+        expr: rate(eigencrosscow_tasks_completed_total{success="true"}[5m]) / rate(eigencrosscow_tasks_completed_total[5m]) < 0.8
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low task success rate"
+          description: "Task success rate is {{ $value | humanizePercentage }}"
+
+      # High memory usage
+      - alert: HighMemoryUsage
+        expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes > 0.9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage"
+          description: "Memory usage is {{ $value | humanizePercentage }}"
+
+      # High CPU usage
+      - alert: HighCPUUsage
+        expr: 100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage"
+          description: "CPU usage is {{ $value }}%"
+
+      # Disk space low
+      - alert: DiskSpaceLow
+        expr: (node_filesystem_avail_bytes / node_filesystem_size_bytes) < 0.1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Disk space low"
+          description: "Disk space is {{ $value | humanizePercentage }}"
+
+      # Network connectivity issues
+      - alert: NetworkConnectivity
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Service down"
+          description: "{{ $labels.job }} is down"
+
+      # Ethereum node issues
+      - alert: EthereumNodeDown
+        expr: up{job="ethereum-node"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Ethereum node down"
+          description: "Ethereum node is not responding"
+
+      # Redis connection issues
+      - alert: RedisDown
+        expr: up{job="redis"} == 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis down"
+          description: "Redis is not responding"
+
+      # High response time
+      - alert: HighResponseTime
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High response time"
+          description: "95th percentile response time is {{ $value }} seconds"

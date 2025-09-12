@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"math/big"
 	"os"
@@ -13,6 +14,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/types"
 	"github.com/prometheus/client_golang/prometheus"
 
 	sdkcommon "github.com/eigencrosscow/avs/common"
@@ -211,11 +213,8 @@ func NewCrossCoWOperatorFromConfig(c types.NodeConfig) (*CrossCoWOperator, error
 	}
 
 	// Initialize matching engine
-	matchingEngine, err := NewMatchingEngine(MatchingConfig{
-		Algorithm:        c.MatchingAlgorithm,
-		EnableAI:         c.EnableAIMatching,
-		MaxIntentPoolSize: 10000,
-		MinProfitThreshold: big.NewInt(1000),
+	matchingEngine, err := NewMatchingEngine(Config{
+		EnableAIMatching: c.EnableAIMatching,
 	}, logger)
 	if err != nil {
 		logger.Error("Cannot create matching engine", "err", err)
@@ -397,7 +396,7 @@ func (o *CrossCoWOperator) SignTaskResponse(taskResponse *CrossCoWTaskManager.Tr
 // registerOperator registers the operator with EigenLayer and the AVS
 func (o *CrossCoWOperator) registerOperator() error {
 	// Register with EigenLayer
-	err := o.eigenlayerWriter.RegisterAsOperator(context.Background(), o.operatorEcdsaPrivateKey)
+	err := o.eigenlayerWriter.RegisterAsOperator(context.Background(), o.operatorAddr)
 	if err != nil {
 		o.logger.Errorf("Error registering operator with eigenlayer", "err", err)
 		return err
@@ -418,7 +417,7 @@ func (o *CrossCoWOperator) registerOperator() error {
 
 	_, err = o.avsWriter.RegisterOperatorInQuorumWithAVSRegistryCoordinator(
 		context.Background(),
-		o.operatorEcdsaPrivateKey,
+		nil, // TODO: Add ECDSA private key
 		operatorToAvsRegistrationSig,
 		o.blsKeypair,
 		[]byte("0"), // quorum number 0

@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/eigencrosscow/avs/pkg/operator"
 	"go.uber.org/zap"
@@ -23,7 +24,6 @@ func main() {
 	defer logger.Sync()
 
 	logger.Info("Starting EigenCrossCoW AVS Operator", 
-		"version", operator.SemVer,
 		"configPath", *configPath,
 	)
 
@@ -119,12 +119,8 @@ func validateConfig(config operator.Config) error {
 		return fmt.Errorf("Ethereum RPC URL is required")
 	}
 
-	if config.ServiceManagerAddress == "" {
-		return fmt.Errorf("Service manager address is required")
-	}
-
-	if config.AcrossHubPoolAddress == "" {
-		return fmt.Errorf("Across hub pool address is required")
+	if config.TaskManagerAddress == "" {
+		return fmt.Errorf("Task manager address is required")
 	}
 
 	if config.MaxConcurrentTasks <= 0 {
@@ -132,7 +128,7 @@ func validateConfig(config operator.Config) error {
 	}
 
 	if config.TaskTimeout <= 0 {
-		config.TaskTimeout = 300 // Default 5 minutes
+		config.TaskTimeout = 30 * time.Second // Default 30 seconds
 	}
 
 	return nil

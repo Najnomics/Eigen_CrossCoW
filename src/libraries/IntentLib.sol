@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
-import {PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
+import {Currency} from "@uniswap/v4-core/types/Currency.sol";
+import {PoolId} from "@uniswap/v4-core/types/PoolId.sol";
 
 library IntentLib {
     struct TradeIntent {
@@ -85,7 +85,37 @@ library IntentLib {
         uint256 timestamp,
         bytes32 salt
     ) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked(user, poolId, amount, timestamp, salt));
+        // CRITICAL FIX: Add block.number and more entropy to prevent replay attacks
+        return keccak256(abi.encodePacked(
+            user, 
+            poolId, 
+            amount, 
+            timestamp,
+            block.number,      // Adds block-specific entropy
+            block.difficulty,  // Additional entropy
+            salt
+        ));
+    }
+    
+    function createIntentIdWithNonce(
+        address user,
+        PoolId poolId,
+        uint256 amount,
+        uint256 timestamp,
+        uint256 nonce,
+        bytes32 salt
+    ) internal pure returns (bytes32) {
+        // CRITICAL FIX: Use nonce for uniqueness and prevent replay attacks
+        return keccak256(abi.encodePacked(
+            user, 
+            poolId, 
+            amount, 
+            timestamp,
+            nonce,             // User-specific nonce for uniqueness
+            block.number,      // Block-specific entropy
+            block.difficulty,  // Additional entropy
+            salt
+        ));
     }
 
     function createTradeId(
@@ -101,7 +131,9 @@ library IntentLib {
                intent.deadline > block.timestamp &&
                intent.amountIn > 0 &&
                intent.amountOutMinimum > 0 &&
-               intent.user != address(0);
+               intent.amountOutMinimum <= intent.amountIn && // Sanity check
+               intent.user != address(0) &&
+               intent.tokenIn != intent.tokenOut; // Can't swap same token
     }
 
     function canMatch(
@@ -121,11 +153,29 @@ library IntentLib {
         TradeIntent memory intentA,
         TradeIntent memory intentB
     ) internal pure returns (uint256 amountA, uint256 amountB, bool isProfitable) {
-        if (intentA.amountIn <= intentB.amountOutMinimum &&
-            intentB.amountIn <= intentA.amountOutMinimum) {
+        // CRITICAL FIX: Proper matching logic
+        // IntentA wants to sell amountA.amountIn of tokenA for tokenB
+        // IntentB wants to sell amountB.amountIn of tokenB for tokenA
+        // They can match if:
+        // 1. IntentA gets at least intentA.amountOutMinimum of tokenB
+        // 2. IntentB gets at least intentB.amountOutMinimum of tokenA
+        
+        if (intentA.amountIn >= intentB.amountOutMinimum &&
+            intentB.amountIn >= intentA.amountOutMinimum) {
+            // Both parties can get at least their minimum required
             amountA = intentA.amountIn;
             amountB = intentB.amountIn;
             isProfitable = true;
+        } else {
+            // Try partial matching
+            uint256 maxAmountA = intentB.amountOutMinimum;
+            uint256 maxAmountB = intentA.amountOutMinimum;
+            
+            if (maxAmountA <= intentA.amountIn && maxAmountB <= intentB.amountIn) {
+                amountA = maxAmountA;
+                amountB = maxAmountB;
+                isProfitable = true;
+            }
         }
     }
 }

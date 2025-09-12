@@ -44,7 +44,7 @@ interface IRegistryCoordinator {
 
     function getCurrentQuorumBitmap(bytes32 operatorId) external view returns (uint192);
 
-    function numRegistries() external view returns (uint256);
+    function getNumRegistries() external view returns (uint256);
 
     event OperatorRegistered(address indexed operator, bytes32 indexed operatorId);
     event OperatorDeregistered(address indexed operator, bytes32 indexed operatorId);

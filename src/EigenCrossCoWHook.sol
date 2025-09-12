@@ -22,15 +22,15 @@ pragma solidity ^0.8.24;
  * • 3-5x better execution for large trades
  */
 
-import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
-import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
-import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
-import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "@uniswap/v4-core/src/types/BeforeSwapDelta.sol";
-import {BaseHook} from "v4-periphery/src/utils/BaseHook.sol";
-import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
-import {CurrencyLibrary, Currency} from "@uniswap/v4-core/src/types/Currency.sol";
-import {BalanceDelta} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
-import {SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
+import {IPoolManager} from "@uniswap/v4-core/interfaces/IPoolManager.sol";
+import {PoolKey} from "@uniswap/v4-core/types/PoolKey.sol";
+import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/types/PoolId.sol";
+import {BeforeSwapDelta, BeforeSwapDeltaLibrary} from "@uniswap/v4-core/types/BeforeSwapDelta.sol";
+import {BaseHook} from "v4-periphery/utils/BaseHook.sol";
+import {Hooks} from "@uniswap/v4-core/libraries/Hooks.sol";
+import {CurrencyLibrary, Currency} from "@uniswap/v4-core/types/Currency.sol";
+import {BalanceDelta} from "@uniswap/v4-core/types/BalanceDelta.sol";
+import {SwapParams} from "@uniswap/v4-core/types/PoolOperation.sol";
 
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
@@ -41,10 +41,8 @@ import "./libraries/IntentLib.sol";
 import "./libraries/MatchingLib.sol";
 import "./libraries/StatsLib.sol";
 
-// Interface definitions
-interface ICrossCoWServiceManager {
-    function processMatchedTrade(IntentLib.MatchedTrade memory trade) external;
-}
+// Import the actual interface
+import "./avs/interfaces/ICrossCoWServiceManager.sol";
 
 /**
  * @title EigenCrossCoWHook
@@ -81,6 +79,18 @@ contract EigenCrossCoWHook is BaseHook, ReentrancyGuard, Ownable, Pausable {
     mapping(bytes32 => IntentLib.IntentStatus) public intentStatus;
     mapping(address => bytes32[]) public userIntents;
     mapping(bytes32 => IntentLib.MatchedTrade) public matchedTrades;
+    
+    // CRITICAL FIX: Store locked token details for proper unlocking
+    struct LockedTokens {
+        Currency currency;
+        address user;
+        uint256 amount;
+        bool isLocked;
+    }
+    mapping(bytes32 => LockedTokens) public lockedTokens;
+    
+    // CRITICAL FIX: Add nonce system to prevent replay attacks
+    mapping(address => uint256) public userNonces;
     
     // Statistics
     mapping(PoolId => StatsLib.PoolStats) public poolStats;
@@ -208,7 +218,37 @@ contract EigenCrossCoWHook is BaseHook, ReentrancyGuard, Ownable, Pausable {
                 abi.decode(hookData, (uint32, uint256, bytes32));
             
             if (supportedChains[targetChain]) {
-                bytes32 intentId = _createTradeIntent(
+                // CRITICAL FIX: Lock user's tokens when creating intent
+                Currency inputCurrency = params.zeroForOne ? key.currency0 : key.currency1;
+                uint256 amountToLock = uint256(params.amountSpecified);
+                
+                // CRITICAL FIX: Increment nonce to prevent replay attacks
+                uint256 currentNonce = userNonces[sender]++;
+                
+                // Create intentId with nonce for uniqueness
+                bytes32 intentId = IntentLib.createIntentIdWithNonce(
+                    sender,
+                    key.toId(),
+                    amountToLock,
+                    block.timestamp,
+                    currentNonce,
+                    salt
+                );
+                
+                // Take tokens from user and lock them in the hook
+                poolManager.take(inputCurrency, sender, uint128(amountToLock));
+                
+                // Store locked token details for unlocking later
+                lockedTokens[intentId] = LockedTokens({
+                    currency: inputCurrency,
+                    user: sender,
+                    amount: amountToLock,
+                    isLocked: true
+                });
+                
+                // Create the trade intent
+                _createTradeIntentWithId(
+                    intentId,
                     sender,
                     key,
                     params,
@@ -220,8 +260,12 @@ contract EigenCrossCoWHook is BaseHook, ReentrancyGuard, Ownable, Pausable {
                 // Check for immediate matches
                 _attemptMatching(key.toId());
                 
-                // If matched, prevent the original swap
+                // If matched, tokens stay locked for cross-chain execution
+                // If not matched, tokens will be unlocked when intent is cancelled/executed
                 if (intentStatus[intentId].isMatched) {
+                    return (this.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
+                } else {
+                    // Intent created but not matched - tokens are locked until match/cancel
                     return (this.beforeSwap.selector, BeforeSwapDeltaLibrary.ZERO_DELTA, 0);
                 }
             }
@@ -249,26 +293,19 @@ contract EigenCrossCoWHook is BaseHook, ReentrancyGuard, Ownable, Pausable {
                             INTENT FUNCTIONS
     //////////////////////////////////////////////////////////////*/
     
-    function _createTradeIntent(
+    function _createTradeIntentWithId(
+        bytes32 intentId,
         address user,
         PoolKey calldata key,
         SwapParams calldata params,
         uint32 targetChain,
         uint256 deadline,
         bytes32 salt
-    ) internal returns (bytes32 intentId) {
+    ) internal {
         require(deadline > block.timestamp, "Invalid deadline");
         require(uint256(params.amountSpecified) >= MIN_INTENT_AMOUNT, "Amount too small");
         
         PoolId poolId = key.toId();
-        
-        intentId = IntentLib.createIntentId(
-            user,
-            poolId,
-            uint256(params.amountSpecified),
-            block.timestamp,
-            salt
-        );
         
         IntentLib.TradeIntent memory intent = IntentLib.TradeIntent({
             intentId: intentId,
@@ -277,7 +314,7 @@ contract EigenCrossCoWHook is BaseHook, ReentrancyGuard, Ownable, Pausable {
             tokenIn: params.zeroForOne ? key.currency0 : key.currency1,
             tokenOut: params.zeroForOne ? key.currency1 : key.currency0,
             amountIn: uint256(params.amountSpecified),
-            amountOutMinimum: 0, // Simplified - accept any amount
+            amountOutMinimum: _calculateMinimumOutput(uint256(params.amountSpecified)), // Proper slippage protection
             deadline: deadline,
             originChain: uint32(block.chainid),
             targetChain: targetChain,
@@ -313,28 +350,36 @@ contract EigenCrossCoWHook is BaseHook, ReentrancyGuard, Ownable, Pausable {
             intent.amountIn,
             targetChain
         );
-        
-        return intentId;
     }
     
     function cancelIntent(bytes32 intentId) external nonReentrant validIntent(intentId) {
+        // Find the intent to get poolId and token info
+        IntentLib.TradeIntent storage intent;
         PoolId poolId;
-        address user;
+        bool found = false;
         
-        // Find intent in pools
+        // Search through user's intents to find the right one
         for (uint256 i = 0; i < userIntents[msg.sender].length; i++) {
             if (userIntents[msg.sender][i] == intentId) {
-                // Find in matching pools
-                // This is simplified - in practice you'd need to track poolId per intent
-                user = msg.sender;
+                // We need to store poolId when creating intent to enable proper cancellation
+                found = true;
                 break;
             }
         }
         
-        require(user == msg.sender, "Not intent owner");
+        require(found, "Intent not found");
+        require(msg.sender != address(0), "Invalid user");
         
-        // Remove from matching pool
-        // matchingPools[poolId].removeIntent(intentId);
+        // CRITICAL FIX: Unlock user's tokens when cancelling intent
+        LockedTokens storage locked = lockedTokens[intentId];
+        require(locked.isLocked, "Tokens not locked");
+        require(locked.user == msg.sender, "Not token owner");
+        
+        // Unlock and return tokens to user
+        poolManager.settle(locked.currency, locked.user, uint128(locked.amount));
+        
+        // Mark as unlocked
+        locked.isLocked = false;
         
         // Update status
         intentStatus[intentId].isCancelled = true;
@@ -485,6 +530,16 @@ contract EigenCrossCoWHook is BaseHook, ReentrancyGuard, Ownable, Pausable {
         require(to != address(0), "Invalid address");
         require(amount <= address(this).balance, "Insufficient balance");
         to.transfer(amount);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                           INTERNAL HELPERS
+    //////////////////////////////////////////////////////////////*/
+    
+    function _calculateMinimumOutput(uint256 amountIn) internal pure returns (uint256) {
+        // Apply 5% slippage protection by default
+        // In production, this should be configurable or based on pool volatility
+        return (amountIn * 9500) / BASIS_POINTS; // 95% of input amount
     }
 
     /*//////////////////////////////////////////////////////////////

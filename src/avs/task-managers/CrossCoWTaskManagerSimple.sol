@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "../../integration/AcrossIntegration.sol";
 import "./ICrossCoWTaskManager.sol";
-import "@uniswap/v4-core/src/types/Currency.sol";
+import "@uniswap/v4-core/types/Currency.sol";
 
 /**
  * @title CrossCoWTaskManagerSimple

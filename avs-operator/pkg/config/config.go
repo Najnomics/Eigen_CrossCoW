@@ -1,517 +1,461 @@
 package config
 
 import (
+	"encoding/json"
 	"fmt"
-	"math/big"
 	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/fsnotify/fsnotify"
 	"github.com/spf13/viper"
-	"go.uber.org/zap"
-	"gopkg.in/yaml.v3"
 )
 
-// Config represents the complete operator configuration
+// Config represents the complete configuration for the AVS operator
 type Config struct {
-	// Core operator settings
-	Operator OperatorConfig `mapstructure:"operator" yaml:"operator"`
+	// Operator configuration
+	Operator OperatorConfig `json:"operator" mapstructure:"operator"`
 	
-	// Ethereum and blockchain settings
-	Ethereum EthereumConfig `mapstructure:"ethereum" yaml:"ethereum"`
+	// Ethereum configuration
+	Ethereum EthereumConfig `json:"ethereum" mapstructure:"ethereum"`
 	
-	// EigenLayer specific settings
-	EigenLayer EigenLayerConfig `mapstructure:"eigenlayer" yaml:"eigenlayer"`
+	// AVS configuration
+	AVS AVSConfig `json:"avs" mapstructure:"avs"`
 	
-	// Across Protocol settings
-	Across AcrossConfig `mapstructure:"across" yaml:"across"`
-	
-	// Matching engine settings
-	Matching MatchingConfig `mapstructure:"matching" yaml:"matching"`
-	
-	// Monitoring and metrics
-	Monitoring MonitoringConfig `mapstructure:"monitoring" yaml:"monitoring"`
+	// Monitoring configuration
+	Monitoring MonitoringConfig `json:"monitoring" mapstructure:"monitoring"`
 	
 	// Logging configuration
-	Logging LoggingConfig `mapstructure:"logging" yaml:"logging"`
+	Logging LoggingConfig `json:"logging" mapstructure:"logging"`
 	
-	// Security settings
-	Security SecurityConfig `mapstructure:"security" yaml:"security"`
+	// Security configuration
+	Security SecurityConfig `json:"security" mapstructure:"security"`
+	
+	// Performance configuration
+	Performance PerformanceConfig `json:"performance" mapstructure:"performance"`
 }
 
-// OperatorConfig contains core operator settings
+// OperatorConfig contains operator-specific configuration
 type OperatorConfig struct {
-	Name                     string        `mapstructure:"name" yaml:"name"`
-	Version                  string        `mapstructure:"version" yaml:"version"`
-	Description              string        `mapstructure:"description" yaml:"description"`
-	RegisterOnStartup        bool          `mapstructure:"register_on_startup" yaml:"register_on_startup"`
-	MaxConcurrentTasks       int           `mapstructure:"max_concurrent_tasks" yaml:"max_concurrent_tasks"`
-	TaskTimeout              time.Duration `mapstructure:"task_timeout" yaml:"task_timeout"`
-	GracefulShutdownTimeout  time.Duration `mapstructure:"graceful_shutdown_timeout" yaml:"graceful_shutdown_timeout"`
-	HealthCheckInterval      time.Duration `mapstructure:"health_check_interval" yaml:"health_check_interval"`
+	// Operator address
+	Address common.Address `json:"address" mapstructure:"address"`
+	
+	// ECDSA private key path
+	EcdsaPrivateKeyPath string `json:"ecdsaPrivateKeyPath" mapstructure:"ecdsaPrivateKeyPath"`
+	
+	// BLS private key path
+	BlsPrivateKeyPath string `json:"blsPrivateKeyPath" mapstructure:"blsPrivateKeyPath"`
+	
+	// Operator name
+	Name string `json:"name" mapstructure:"name"`
+	
+	// Operator description
+	Description string `json:"description" mapstructure:"description"`
+	
+	// Minimum stake required
+	MinStake string `json:"minStake" mapstructure:"minStake"`
+	
+	// Maximum stake allowed
+	MaxStake string `json:"maxStake" mapstructure:"maxStake"`
 }
 
-// EthereumConfig contains Ethereum network settings
+// EthereumConfig contains Ethereum-related configuration
 type EthereumConfig struct {
-	MainnetRPC    string            `mapstructure:"mainnet_rpc" yaml:"mainnet_rpc"`
-	MainnetWS     string            `mapstructure:"mainnet_ws" yaml:"mainnet_ws"`
-	ChainRPCs     map[uint32]string `mapstructure:"chain_rpcs" yaml:"chain_rpcs"`
-	ChainWSs      map[uint32]string `mapstructure:"chain_ws" yaml:"chain_ws"`
-	MaxGasPrice   *big.Int          `mapstructure:"max_gas_price" yaml:"max_gas_price"`
-	GasMultiplier float64           `mapstructure:"gas_multiplier" yaml:"gas_multiplier"`
-	RetryAttempts int               `mapstructure:"retry_attempts" yaml:"retry_attempts"`
-	RetryDelay    time.Duration     `mapstructure:"retry_delay" yaml:"retry_delay"`
+	// RPC URL
+	RpcURL string `json:"rpcUrl" mapstructure:"rpcUrl"`
+	
+	// WebSocket URL
+	WsURL string `json:"wsUrl" mapstructure:"wsUrl"`
+	
+	// Chain ID
+	ChainID int64 `json:"chainId" mapstructure:"chainId"`
+	
+	// Gas price (in wei)
+	GasPrice string `json:"gasPrice" mapstructure:"gasPrice"`
+	
+	// Gas limit
+	GasLimit uint64 `json:"gasLimit" mapstructure:"gasLimit"`
+	
+	// Transaction timeout
+	TxTimeout time.Duration `json:"txTimeout" mapstructure:"txTimeout"`
+	
+	// Block confirmation count
+	Confirmations int64 `json:"confirmations" mapstructure:"confirmations"`
 }
 
-// EigenLayerConfig contains EigenLayer AVS settings
-type EigenLayerConfig struct {
-	ServiceManagerAddress    common.Address `mapstructure:"service_manager_address" yaml:"service_manager_address"`
-	RegistryCoordinatorAddr  common.Address `mapstructure:"registry_coordinator_address" yaml:"registry_coordinator_address"`
-	StakeRegistryAddress     common.Address `mapstructure:"stake_registry_address" yaml:"stake_registry_address"`
-	BLSApkRegistryAddress    common.Address `mapstructure:"bls_apk_registry_address" yaml:"bls_apk_registry_address"`
-	IndexRegistryAddress     common.Address `mapstructure:"index_registry_address" yaml:"index_registry_address"`
-	MinStakeAmount           *big.Int       `mapstructure:"min_stake_amount" yaml:"min_stake_amount"`
-	SlashingParams           SlashingConfig `mapstructure:"slashing" yaml:"slashing"`
-	RewardsParams            RewardsConfig  `mapstructure:"rewards" yaml:"rewards"`
+// AVSConfig contains AVS-specific configuration
+type AVSConfig struct {
+	// Service manager address
+	ServiceManagerAddress common.Address `json:"serviceManagerAddress" mapstructure:"serviceManagerAddress"`
+	
+	// Registry coordinator address
+	RegistryCoordinatorAddress common.Address `json:"registryCoordinatorAddress" mapstructure:"registryCoordinatorAddress"`
+	
+	// Stake registry address
+	StakeRegistryAddress common.Address `json:"stakeRegistryAddress" mapstructure:"stakeRegistryAddress"`
+	
+	// BLS APK registry address
+	BlsApkRegistryAddress common.Address `json:"blsApkRegistryAddress" mapstructure:"blsApkRegistryAddress"`
+	
+	// Task manager address
+	TaskManagerAddress common.Address `json:"taskManagerAddress" mapstructure:"taskManagerAddress"`
+	
+	// Aggregator address
+	AggregatorAddress common.Address `json:"aggregatorAddress" mapstructure:"aggregatorAddress"`
+	
+	// Quorum numbers
+	QuorumNumbers []byte `json:"quorumNumbers" mapstructure:"quorumNumbers"`
+	
+	// Socket address
+	Socket string `json:"socket" mapstructure:"socket"`
 }
 
-// SlashingConfig contains slashing parameters
-type SlashingConfig struct {
-	EnableSlashing     bool          `mapstructure:"enable_slashing" yaml:"enable_slashing"`
-	SlashableAmount    *big.Int      `mapstructure:"slashable_amount" yaml:"slashable_amount"`
-	SlashingDelay      time.Duration `mapstructure:"slashing_delay" yaml:"slashing_delay"`
-	WithdrawalDelay    time.Duration `mapstructure:"withdrawal_delay" yaml:"withdrawal_delay"`
-}
-
-// RewardsConfig contains reward distribution parameters
-type RewardsConfig struct {
-	EnableRewards        bool     `mapstructure:"enable_rewards" yaml:"enable_rewards"`
-	RewardPerTask        *big.Int `mapstructure:"reward_per_task" yaml:"reward_per_task"`
-	BonusPerformanceRate float64  `mapstructure:"bonus_performance_rate" yaml:"bonus_performance_rate"`
-	MinTasksForBonus     int64    `mapstructure:"min_tasks_for_bonus" yaml:"min_tasks_for_bonus"`
-}
-
-// AcrossConfig contains Across Protocol settings
-type AcrossConfig struct {
-	HubPoolAddress         common.Address            `mapstructure:"hub_pool_address" yaml:"hub_pool_address"`
-	SpokePoolAddresses     map[uint32]common.Address `mapstructure:"spoke_pool_addresses" yaml:"spoke_pool_addresses"`
-	QuoteAPIURL            string                    `mapstructure:"quote_api_url" yaml:"quote_api_url"`
-	MaxSlippageTolerance   *big.Int                  `mapstructure:"max_slippage_tolerance" yaml:"max_slippage_tolerance"`
-	MinBridgeAmount        *big.Int                  `mapstructure:"min_bridge_amount" yaml:"min_bridge_amount"`
-	MaxBridgeAmount        *big.Int                  `mapstructure:"max_bridge_amount" yaml:"max_bridge_amount"`
-	BridgeTimeout          time.Duration             `mapstructure:"bridge_timeout" yaml:"bridge_timeout"`
-	MonitoringInterval     time.Duration             `mapstructure:"monitoring_interval" yaml:"monitoring_interval"`
-	SupportedTokens        []TokenConfig             `mapstructure:"supported_tokens" yaml:"supported_tokens"`
-}
-
-// TokenConfig defines supported token configuration
-type TokenConfig struct {
-	Symbol    string                     `mapstructure:"symbol" yaml:"symbol"`
-	Decimals  uint8                      `mapstructure:"decimals" yaml:"decimals"`
-	Addresses map[uint32]common.Address  `mapstructure:"addresses" yaml:"addresses"`
-}
-
-// MatchingConfig contains matching engine settings
-type MatchingConfig struct {
-	Algorithm              string        `mapstructure:"algorithm" yaml:"algorithm"`
-	EnableAIMatching       bool          `mapstructure:"enable_ai_matching" yaml:"enable_ai_matching"`
-	AIModelEndpoint        string        `mapstructure:"ai_model_endpoint" yaml:"ai_model_endpoint"`
-	AIModelAPIKey          string        `mapstructure:"ai_model_api_key" yaml:"ai_model_api_key"`
-	MaxIntentPoolSize      int           `mapstructure:"max_intent_pool_size" yaml:"max_intent_pool_size"`
-	IntentExpiryTime       time.Duration `mapstructure:"intent_expiry_time" yaml:"intent_expiry_time"`
-	MatchingInterval       time.Duration `mapstructure:"matching_interval" yaml:"matching_interval"`
-	MinProfitThreshold     *big.Int      `mapstructure:"min_profit_threshold" yaml:"min_profit_threshold"`
-	EnableBatchMatching    bool          `mapstructure:"enable_batch_matching" yaml:"enable_batch_matching"`
-	BatchSize              int           `mapstructure:"batch_size" yaml:"batch_size"`
-	BatchTimeout           time.Duration `mapstructure:"batch_timeout" yaml:"batch_timeout"`
-	EnableCircularTrades   bool          `mapstructure:"enable_circular_trades" yaml:"enable_circular_trades"`
-	MaxCircularTradeDepth  int           `mapstructure:"max_circular_trade_depth" yaml:"max_circular_trade_depth"`
-}
-
-// MonitoringConfig contains monitoring and metrics settings
+// MonitoringConfig contains monitoring configuration
 type MonitoringConfig struct {
-	EnableMetrics         bool          `mapstructure:"enable_metrics" yaml:"enable_metrics"`
-	MetricsAddress        string        `mapstructure:"metrics_address" yaml:"metrics_address"`
-	EnableNodeAPI         bool          `mapstructure:"enable_node_api" yaml:"enable_node_api"`
-	NodeAPIAddress        string        `mapstructure:"node_api_address" yaml:"node_api_address"`
-	EnableHealthCheck     bool          `mapstructure:"enable_health_check" yaml:"enable_health_check"`
-	HealthCheckAddress    string        `mapstructure:"health_check_address" yaml:"health_check_address"`
-	MetricsUpdateInterval time.Duration `mapstructure:"metrics_update_interval" yaml:"metrics_update_interval"`
-	EnableProfiling       bool          `mapstructure:"enable_profiling" yaml:"enable_profiling"`
-	ProfilingAddress      string        `mapstructure:"profiling_address" yaml:"profiling_address"`
+	// Enable metrics
+	Enabled bool `json:"enabled" mapstructure:"enabled"`
+	
+	// Metrics port
+	Port int `json:"port" mapstructure:"port"`
+	
+	// Metrics path
+	Path string `json:"path" mapstructure:"path"`
+	
+	// Prometheus configuration
+	Prometheus PrometheusConfig `json:"prometheus" mapstructure:"prometheus"`
+	
+	// Health check configuration
+	HealthCheck HealthCheckConfig `json:"healthCheck" mapstructure:"healthCheck"`
 }
 
-// LoggingConfig contains logging settings
+// PrometheusConfig contains Prometheus-specific configuration
+type PrometheusConfig struct {
+	// Enable Prometheus metrics
+	Enabled bool `json:"enabled" mapstructure:"enabled"`
+	
+	// Metrics namespace
+	Namespace string `json:"namespace" mapstructure:"namespace"`
+	
+	// Metrics subsystem
+	Subsystem string `json:"subsystem" mapstructure:"subsystem"`
+}
+
+// HealthCheckConfig contains health check configuration
+type HealthCheckConfig struct {
+	// Enable health checks
+	Enabled bool `json:"enabled" mapstructure:"enabled"`
+	
+	// Health check port
+	Port int `json:"port" mapstructure:"port"`
+	
+	// Health check interval
+	Interval time.Duration `json:"interval" mapstructure:"interval"`
+	
+	// Health check timeout
+	Timeout time.Duration `json:"timeout" mapstructure:"timeout"`
+}
+
+// LoggingConfig contains logging configuration
 type LoggingConfig struct {
-	Level       string `mapstructure:"level" yaml:"level"`
-	Format      string `mapstructure:"format" yaml:"format"`
-	OutputPath  string `mapstructure:"output_path" yaml:"output_path"`
-	ErrorPath   string `mapstructure:"error_path" yaml:"error_path"`
-	MaxSize     int    `mapstructure:"max_size" yaml:"max_size"`
-	MaxBackups  int    `mapstructure:"max_backups" yaml:"max_backups"`
-	MaxAge      int    `mapstructure:"max_age" yaml:"max_age"`
-	Compress    bool   `mapstructure:"compress" yaml:"compress"`
-	EnableColor bool   `mapstructure:"enable_color" yaml:"enable_color"`
+	// Log level
+	Level string `json:"level" mapstructure:"level"`
+	
+	// Log format
+	Format string `json:"format" mapstructure:"format"`
+	
+	// Log file path
+	FilePath string `json:"filePath" mapstructure:"filePath"`
+	
+	// Enable console logging
+	Console bool `json:"console" mapstructure:"console"`
+	
+	// Enable file logging
+	File bool `json:"file" mapstructure:"file"`
+	
+	// Log rotation
+	Rotation LogRotationConfig `json:"rotation" mapstructure:"rotation"`
 }
 
-// SecurityConfig contains security settings
+// LogRotationConfig contains log rotation configuration
+type LogRotationConfig struct {
+	// Enable log rotation
+	Enabled bool `json:"enabled" mapstructure:"enabled"`
+	
+	// Maximum file size (in MB)
+	MaxSize int `json:"maxSize" mapstructure:"maxSize"`
+	
+	// Maximum number of files
+	MaxFiles int `json:"maxFiles" mapstructure:"maxFiles"`
+	
+	// Maximum age (in days)
+	MaxAge int `json:"maxAge" mapstructure:"maxAge"`
+}
+
+// SecurityConfig contains security configuration
 type SecurityConfig struct {
-	EnableTLS            bool          `mapstructure:"enable_tls" yaml:"enable_tls"`
-	TLSCertPath          string        `mapstructure:"tls_cert_path" yaml:"tls_cert_path"`
-	TLSKeyPath           string        `mapstructure:"tls_key_path" yaml:"tls_key_path"`
-	EnableRateLimiting   bool          `mapstructure:"enable_rate_limiting" yaml:"enable_rate_limiting"`
-	RateLimit            int           `mapstructure:"rate_limit" yaml:"rate_limit"`
-	RateBurst            int           `mapstructure:"rate_burst" yaml:"rate_burst"`
-	EnableAuth           bool          `mapstructure:"enable_auth" yaml:"enable_auth"`
-	AuthSecret           string        `mapstructure:"auth_secret" yaml:"auth_secret"`
-	SessionTimeout       time.Duration `mapstructure:"session_timeout" yaml:"session_timeout"`
-	MaxFailedAttempts    int           `mapstructure:"max_failed_attempts" yaml:"max_failed_attempts"`
-	LockoutDuration      time.Duration `mapstructure:"lockout_duration" yaml:"lockout_duration"`
-}
-
-// ConfigManager handles configuration loading, validation, and updates
-type ConfigManager struct {
-	config     *Config
-	configPath string
-	logger     *zap.Logger
-	viper      *viper.Viper
-}
-
-// NewConfigManager creates a new configuration manager
-func NewConfigManager(configPath string, logger *zap.Logger) *ConfigManager {
-	return &ConfigManager{
-		configPath: configPath,
-		logger:     logger,
-		viper:      viper.New(),
-	}
-}
-
-// LoadConfig loads configuration from file with environment variable overrides
-func (cm *ConfigManager) LoadConfig() (*Config, error) {
-	cm.logger.Info("Loading configuration", zap.String("path", cm.configPath))
+	// Enable BLS signature verification
+	EnableBLS bool `json:"enableBLS" mapstructure:"enableBLS"`
 	
-	// Set up viper
-	cm.viper.SetConfigFile(cm.configPath)
-	cm.viper.AutomaticEnv()
-	cm.viper.SetEnvPrefix("CROSSCOW")
+	// Enable ECDSA signature verification
+	EnableECDSA bool `json:"enableECDSA" mapstructure:"enableECDSA"`
 	
+	// Signature verification timeout
+	SignatureTimeout time.Duration `json:"signatureTimeout" mapstructure:"signatureTimeout"`
+	
+	// Maximum signature age
+	MaxSignatureAge time.Duration `json:"maxSignatureAge" mapstructure:"maxSignatureAge"`
+	
+	// Rate limiting
+	RateLimit RateLimitConfig `json:"rateLimit" mapstructure:"rateLimit"`
+}
+
+// RateLimitConfig contains rate limiting configuration
+type RateLimitConfig struct {
+	// Enable rate limiting
+	Enabled bool `json:"enabled" mapstructure:"enabled"`
+	
+	// Requests per second
+	RPS int `json:"rps" mapstructure:"rps"`
+	
+	// Burst size
+	Burst int `json:"burst" mapstructure:"burst"`
+}
+
+// PerformanceConfig contains performance configuration
+type PerformanceConfig struct {
+	// Maximum concurrent tasks
+	MaxConcurrentTasks int `json:"maxConcurrentTasks" mapstructure:"maxConcurrentTasks"`
+	
+	// Task processing timeout
+	TaskTimeout time.Duration `json:"taskTimeout" mapstructure:"taskTimeout"`
+	
+	// Event processing timeout
+	EventTimeout time.Duration `json:"eventTimeout" mapstructure:"eventTimeout"`
+	
+	// Cache configuration
+	Cache CacheConfig `json:"cache" mapstructure:"cache"`
+	
+	// Database configuration
+	Database DatabaseConfig `json:"database" mapstructure:"database"`
+}
+
+// CacheConfig contains cache configuration
+type CacheConfig struct {
+	// Enable caching
+	Enabled bool `json:"enabled" mapstructure:"enabled"`
+	
+	// Cache size
+	Size int `json:"size" mapstructure:"size"`
+	
+	// Cache TTL
+	TTL time.Duration `json:"ttl" mapstructure:"ttl"`
+}
+
+// DatabaseConfig contains database configuration
+type DatabaseConfig struct {
+	// Database type
+	Type string `json:"type" mapstructure:"type"`
+	
+	// Database URL
+	URL string `json:"url" mapstructure:"url"`
+	
+	// Connection pool size
+	PoolSize int `json:"poolSize" mapstructure:"poolSize"`
+	
+	// Connection timeout
+	Timeout time.Duration `json:"timeout" mapstructure:"timeout"`
+}
+
+// LoadConfig loads configuration from file and environment variables
+func LoadConfig(configPath string) (*Config, error) {
 	// Set default values
-	cm.setDefaults()
+	setDefaults()
 	
-	// Read config file
-	if err := cm.viper.ReadInConfig(); err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
-			cm.logger.Warn("Config file not found, using defaults and environment variables")
-		} else {
-			return nil, fmt.Errorf("error reading config file: %w", err)
+	// Load from file if provided
+	if configPath != "" {
+		viper.SetConfigFile(configPath)
+		if err := viper.ReadInConfig(); err != nil {
+			return nil, fmt.Errorf("failed to read config file: %w", err)
 		}
 	}
 	
-	// Unmarshal config
-	config := &Config{}
-	if err := cm.viper.Unmarshal(config); err != nil {
-		return nil, fmt.Errorf("error unmarshaling config: %w", err)
+	// Load from environment variables
+	viper.AutomaticEnv()
+	
+	// Unmarshal into config struct
+	var config Config
+	if err := viper.Unmarshal(&config); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 	
 	// Validate configuration
-	if err := cm.validateConfig(config); err != nil {
+	if err := config.Validate(); err != nil {
 		return nil, fmt.Errorf("config validation failed: %w", err)
 	}
 	
-	cm.config = config
-	cm.logger.Info("Configuration loaded successfully")
-	
-	return config, nil
-}
-
-// SaveConfig saves the current configuration to file
-func (cm *ConfigManager) SaveConfig(config *Config) error {
-	cm.logger.Info("Saving configuration", zap.String("path", cm.configPath))
-	
-	// Ensure directory exists
-	dir := filepath.Dir(cm.configPath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return fmt.Errorf("failed to create config directory: %w", err)
-	}
-	
-	// Marshal config to YAML
-	data, err := yaml.Marshal(config)
-	if err != nil {
-		return fmt.Errorf("failed to marshal config: %w", err)
-	}
-	
-	// Write to file
-	if err := os.WriteFile(cm.configPath, data, 0644); err != nil {
-		return fmt.Errorf("failed to write config file: %w", err)
-	}
-	
-	cm.config = config
-	cm.logger.Info("Configuration saved successfully")
-	
-	return nil
-}
-
-// GetConfig returns the current configuration
-func (cm *ConfigManager) GetConfig() *Config {
-	return cm.config
-}
-
-// UpdateConfig updates specific configuration values
-func (cm *ConfigManager) UpdateConfig(updates map[string]interface{}) error {
-	cm.logger.Info("Updating configuration", zap.Int("updates", len(updates)))
-	
-	for key, value := range updates {
-		cm.viper.Set(key, value)
-	}
-	
-	// Re-unmarshal the updated config
-	config := &Config{}
-	if err := cm.viper.Unmarshal(config); err != nil {
-		return fmt.Errorf("error unmarshaling updated config: %w", err)
-	}
-	
-	// Validate updated configuration
-	if err := cm.validateConfig(config); err != nil {
-		return fmt.Errorf("updated config validation failed: %w", err)
-	}
-	
-	cm.config = config
-	return nil
+	return &config, nil
 }
 
 // setDefaults sets default configuration values
-func (cm *ConfigManager) setDefaults() {
+func setDefaults() {
 	// Operator defaults
-	cm.viper.SetDefault("operator.name", "crosscow-operator")
-	cm.viper.SetDefault("operator.version", "0.1.0")
-	cm.viper.SetDefault("operator.description", "CrossCoW AVS Operator")
-	cm.viper.SetDefault("operator.register_on_startup", true)
-	cm.viper.SetDefault("operator.max_concurrent_tasks", 10)
-	cm.viper.SetDefault("operator.task_timeout", "5m")
-	cm.viper.SetDefault("operator.graceful_shutdown_timeout", "30s")
-	cm.viper.SetDefault("operator.health_check_interval", "30s")
+	viper.SetDefault("operator.name", "eigencrosscow-operator")
+	viper.SetDefault("operator.description", "EigenCrossCoW AVS Operator")
+	viper.SetDefault("operator.minStake", "1000000000000000000") // 1 ETH
+	viper.SetDefault("operator.maxStake", "1000000000000000000000") // 1000 ETH
 	
 	// Ethereum defaults
-	cm.viper.SetDefault("ethereum.mainnet_rpc", "https://eth-mainnet.alchemyapi.io/v2/your-api-key")
-	cm.viper.SetDefault("ethereum.gas_multiplier", 1.2)
-	cm.viper.SetDefault("ethereum.retry_attempts", 3)
-	cm.viper.SetDefault("ethereum.retry_delay", "5s")
+	viper.SetDefault("ethereum.chainId", 1)
+	viper.SetDefault("ethereum.gasPrice", "20000000000") // 20 gwei
+	viper.SetDefault("ethereum.gasLimit", 1000000)
+	viper.SetDefault("ethereum.txTimeout", "30s")
+	viper.SetDefault("ethereum.confirmations", 1)
 	
-	// EigenLayer defaults
-	cm.viper.SetDefault("eigenlayer.min_stake_amount", "32000000000000000000") // 32 ETH in wei
-	cm.viper.SetDefault("eigenlayer.slashing.enable_slashing", true)
-	cm.viper.SetDefault("eigenlayer.slashing.slashing_delay", "7d")
-	cm.viper.SetDefault("eigenlayer.slashing.withdrawal_delay", "7d")
-	cm.viper.SetDefault("eigenlayer.rewards.enable_rewards", true)
-	cm.viper.SetDefault("eigenlayer.rewards.bonus_performance_rate", 1.1)
-	cm.viper.SetDefault("eigenlayer.rewards.min_tasks_for_bonus", 100)
-	
-	// Across defaults
-	cm.viper.SetDefault("across.quote_api_url", "https://across.to/api/")
-	cm.viper.SetDefault("across.max_slippage_tolerance", "100") // 1% in basis points
-	cm.viper.SetDefault("across.min_bridge_amount", "1000000") // 1 USDC
-	cm.viper.SetDefault("across.bridge_timeout", "30m")
-	cm.viper.SetDefault("across.monitoring_interval", "30s")
-	
-	// Matching defaults
-	cm.viper.SetDefault("matching.algorithm", "greedy")
-	cm.viper.SetDefault("matching.enable_ai_matching", false)
-	cm.viper.SetDefault("matching.max_intent_pool_size", 10000)
-	cm.viper.SetDefault("matching.intent_expiry_time", "1h")
-	cm.viper.SetDefault("matching.matching_interval", "10s")
-	cm.viper.SetDefault("matching.min_profit_threshold", "1000") // 0.001 ETH in wei
-	cm.viper.SetDefault("matching.enable_batch_matching", true)
-	cm.viper.SetDefault("matching.batch_size", 10)
-	cm.viper.SetDefault("matching.batch_timeout", "30s")
-	cm.viper.SetDefault("matching.enable_circular_trades", true)
-	cm.viper.SetDefault("matching.max_circular_trade_depth", 5)
+	// AVS defaults
+	viper.SetDefault("avs.quorumNumbers", []byte{0})
+	viper.SetDefault("avs.socket", "")
 	
 	// Monitoring defaults
-	cm.viper.SetDefault("monitoring.enable_metrics", true)
-	cm.viper.SetDefault("monitoring.metrics_address", ":9090")
-	cm.viper.SetDefault("monitoring.enable_node_api", true)
-	cm.viper.SetDefault("monitoring.node_api_address", ":9091")
-	cm.viper.SetDefault("monitoring.enable_health_check", true)
-	cm.viper.SetDefault("monitoring.health_check_address", ":8080")
-	cm.viper.SetDefault("monitoring.metrics_update_interval", "30s")
-	cm.viper.SetDefault("monitoring.enable_profiling", false)
-	cm.viper.SetDefault("monitoring.profiling_address", ":6060")
+	viper.SetDefault("monitoring.enabled", true)
+	viper.SetDefault("monitoring.port", 9000)
+	viper.SetDefault("monitoring.path", "/metrics")
+	viper.SetDefault("monitoring.prometheus.enabled", true)
+	viper.SetDefault("monitoring.prometheus.namespace", "eigencrosscow")
+	viper.SetDefault("monitoring.prometheus.subsystem", "avs")
+	viper.SetDefault("monitoring.healthCheck.enabled", true)
+	viper.SetDefault("monitoring.healthCheck.port", 8080)
+	viper.SetDefault("monitoring.healthCheck.interval", "30s")
+	viper.SetDefault("monitoring.healthCheck.timeout", "5s")
 	
 	// Logging defaults
-	cm.viper.SetDefault("logging.level", "info")
-	cm.viper.SetDefault("logging.format", "json")
-	cm.viper.SetDefault("logging.output_path", "stdout")
-	cm.viper.SetDefault("logging.error_path", "stderr")
-	cm.viper.SetDefault("logging.max_size", 100)
-	cm.viper.SetDefault("logging.max_backups", 3)
-	cm.viper.SetDefault("logging.max_age", 7)
-	cm.viper.SetDefault("logging.compress", true)
-	cm.viper.SetDefault("logging.enable_color", false)
+	viper.SetDefault("logging.level", "info")
+	viper.SetDefault("logging.format", "json")
+	viper.SetDefault("logging.console", true)
+	viper.SetDefault("logging.file", false)
+	viper.SetDefault("logging.rotation.enabled", true)
+	viper.SetDefault("logging.rotation.maxSize", 100)
+	viper.SetDefault("logging.rotation.maxFiles", 10)
+	viper.SetDefault("logging.rotation.maxAge", 30)
 	
 	// Security defaults
-	cm.viper.SetDefault("security.enable_tls", false)
-	cm.viper.SetDefault("security.enable_rate_limiting", true)
-	cm.viper.SetDefault("security.rate_limit", 100)
-	cm.viper.SetDefault("security.rate_burst", 10)
-	cm.viper.SetDefault("security.enable_auth", false)
-	cm.viper.SetDefault("security.session_timeout", "24h")
-	cm.viper.SetDefault("security.max_failed_attempts", 5)
-	cm.viper.SetDefault("security.lockout_duration", "15m")
+	viper.SetDefault("security.enableBLS", true)
+	viper.SetDefault("security.enableECDSA", true)
+	viper.SetDefault("security.signatureTimeout", "30s")
+	viper.SetDefault("security.maxSignatureAge", "1h")
+	viper.SetDefault("security.rateLimit.enabled", true)
+	viper.SetDefault("security.rateLimit.rps", 100)
+	viper.SetDefault("security.rateLimit.burst", 200)
+	
+	// Performance defaults
+	viper.SetDefault("performance.maxConcurrentTasks", 10)
+	viper.SetDefault("performance.taskTimeout", "5m")
+	viper.SetDefault("performance.eventTimeout", "1m")
+	viper.SetDefault("performance.cache.enabled", true)
+	viper.SetDefault("performance.cache.size", 1000)
+	viper.SetDefault("performance.cache.ttl", "1h")
+	viper.SetDefault("performance.database.type", "redis")
+	viper.SetDefault("performance.database.poolSize", 10)
+	viper.SetDefault("performance.database.timeout", "30s")
 }
 
-// validateConfig validates the loaded configuration
-func (cm *ConfigManager) validateConfig(config *Config) error {
-	// Validate operator config
-	if config.Operator.Name == "" {
-		return fmt.Errorf("operator name cannot be empty")
+// Validate validates the configuration
+func (c *Config) Validate() error {
+	// Validate operator configuration
+	if c.Operator.Address == (common.Address{}) {
+		return fmt.Errorf("operator address is required")
 	}
 	
-	if config.Operator.MaxConcurrentTasks <= 0 {
-		return fmt.Errorf("max_concurrent_tasks must be greater than 0")
+	if c.Operator.EcdsaPrivateKeyPath == "" {
+		return fmt.Errorf("ECDSA private key path is required")
 	}
 	
-	// Validate Ethereum config
-	if config.Ethereum.MainnetRPC == "" {
-		return fmt.Errorf("mainnet_rpc cannot be empty")
+	if c.Operator.BlsPrivateKeyPath == "" {
+		return fmt.Errorf("BLS private key path is required")
 	}
 	
-	if config.Ethereum.GasMultiplier <= 0 {
-		return fmt.Errorf("gas_multiplier must be greater than 0")
+	// Validate Ethereum configuration
+	if c.Ethereum.RpcURL == "" {
+		return fmt.Errorf("Ethereum RPC URL is required")
 	}
 	
-	// Validate EigenLayer addresses if provided
-	if config.EigenLayer.ServiceManagerAddress == (common.Address{}) {
-		cm.logger.Warn("ServiceManagerAddress not configured")
+	if c.Ethereum.ChainID <= 0 {
+		return fmt.Errorf("invalid chain ID: %d", c.Ethereum.ChainID)
 	}
 	
-	// Validate Across config
-	if config.Across.QuoteAPIURL == "" {
-		return fmt.Errorf("across quote_api_url cannot be empty")
+	// Validate AVS configuration
+	if c.AVS.ServiceManagerAddress == (common.Address{}) {
+		return fmt.Errorf("service manager address is required")
 	}
 	
-	// Validate matching config
-	validAlgorithms := []string{"greedy", "optimal", "ai_enhanced"}
-	algorithmValid := false
-	for _, alg := range validAlgorithms {
-		if config.Matching.Algorithm == alg {
-			algorithmValid = true
-			break
-		}
-	}
-	if !algorithmValid {
-		return fmt.Errorf("invalid matching algorithm: %s", config.Matching.Algorithm)
+	if c.AVS.RegistryCoordinatorAddress == (common.Address{}) {
+		return fmt.Errorf("registry coordinator address is required")
 	}
 	
-	// Validate logging config
-	validLevels := []string{"debug", "info", "warn", "error", "fatal"}
-	levelValid := false
-	for _, level := range validLevels {
-		if config.Logging.Level == level {
-			levelValid = true
-			break
-		}
+	if c.AVS.StakeRegistryAddress == (common.Address{}) {
+		return fmt.Errorf("stake registry address is required")
 	}
-	if !levelValid {
-		return fmt.Errorf("invalid log level: %s", config.Logging.Level)
+	
+	if c.AVS.BlsApkRegistryAddress == (common.Address{}) {
+		return fmt.Errorf("BLS APK registry address is required")
+	}
+	
+	if c.AVS.TaskManagerAddress == (common.Address{}) {
+		return fmt.Errorf("task manager address is required")
+	}
+	
+	// Validate monitoring configuration
+	if c.Monitoring.Enabled && c.Monitoring.Port <= 0 {
+		return fmt.Errorf("invalid monitoring port: %d", c.Monitoring.Port)
+	}
+	
+	// Validate logging configuration
+	if c.Logging.Level == "" {
+		return fmt.Errorf("log level is required")
+	}
+	
+	// Validate performance configuration
+	if c.Performance.MaxConcurrentTasks <= 0 {
+		return fmt.Errorf("invalid max concurrent tasks: %d", c.Performance.MaxConcurrentTasks)
 	}
 	
 	return nil
 }
 
-// WatchConfig watches for configuration file changes
-func (cm *ConfigManager) WatchConfig(callback func(*Config)) error {
-	cm.viper.WatchConfig()
-	cm.viper.OnConfigChange(func(e fsnotify.Event) {
-		cm.logger.Info("Config file changed", zap.String("file", e.Name))
-		
-		// Reload configuration
-		config := &Config{}
-		if err := cm.viper.Unmarshal(config); err != nil {
-			cm.logger.Error("Error reloading config", zap.Error(err))
-			return
-		}
-		
-		// Validate reloaded configuration
-		if err := cm.validateConfig(config); err != nil {
-			cm.logger.Error("Reloaded config validation failed", zap.Error(err))
-			return
-		}
-		
-		cm.config = config
-		if callback != nil {
-			callback(config)
-		}
-	})
-	
-	return nil
-}
-
-// GenerateDefaultConfig generates a default configuration file
-func GenerateDefaultConfig(path string) error {
-	config := &Config{
-		Operator: OperatorConfig{
-			Name:                     "crosscow-operator",
-			Version:                  "0.1.0",
-			Description:              "CrossCoW AVS Operator",
-			RegisterOnStartup:        true,
-			MaxConcurrentTasks:       10,
-			TaskTimeout:              5 * time.Minute,
-			GracefulShutdownTimeout:  30 * time.Second,
-			HealthCheckInterval:      30 * time.Second,
-		},
-		Ethereum: EthereumConfig{
-			MainnetRPC:    "https://eth-mainnet.alchemyapi.io/v2/your-api-key",
-			GasMultiplier: 1.2,
-			RetryAttempts: 3,
-			RetryDelay:    5 * time.Second,
-			ChainRPCs: map[uint32]string{
-				1:     "https://eth-mainnet.alchemyapi.io/v2/your-api-key",
-				10:    "https://opt-mainnet.g.alchemy.com/v2/your-api-key",
-				137:   "https://polygon-mainnet.alchemyapi.io/v2/your-api-key",
-				42161: "https://arb-mainnet.g.alchemy.com/v2/your-api-key",
-				8453:  "https://base-mainnet.g.alchemy.com/v2/your-api-key",
-			},
-		},
-		Monitoring: MonitoringConfig{
-			EnableMetrics:         true,
-			MetricsAddress:        ":9090",
-			EnableNodeAPI:         true,
-			NodeAPIAddress:        ":9091",
-			EnableHealthCheck:     true,
-			HealthCheckAddress:    ":8080",
-			MetricsUpdateInterval: 30 * time.Second,
-		},
-		Logging: LoggingConfig{
-			Level:       "info",
-			Format:      "json",
-			OutputPath:  "stdout",
-			ErrorPath:   "stderr",
-			MaxSize:     100,
-			MaxBackups:  3,
-			MaxAge:      7,
-			Compress:    true,
-			EnableColor: false,
-		},
-	}
-	
-	// Ensure directory exists
-	dir := filepath.Dir(path)
+// SaveConfig saves configuration to file
+func (c *Config) SaveConfig(configPath string) error {
+	// Create directory if it doesn't exist
+	dir := filepath.Dir(configPath)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 	
-	// Marshal to YAML
-	data, err := yaml.Marshal(config)
+	// Marshal to JSON
+	data, err := json.MarshalIndent(c, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}
 	
 	// Write to file
-	if err := os.WriteFile(path, data, 0644); err != nil {
+	if err := os.WriteFile(configPath, data, 0644); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
 	
 	return nil
+}
+
+// GetDefaultConfigPath returns the default config path
+func GetDefaultConfigPath() string {
+	return "config/operator.yaml"
+}
+
+// GetConfigPaths returns possible config file paths
+func GetConfigPaths() []string {
+	return []string{
+		"config/operator.yaml",
+		"config/operator.json",
+		"operator.yaml",
+		"operator.json",
+		"./config.yaml",
+		"./config.json",
+	}
 }

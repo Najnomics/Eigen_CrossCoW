@@ -15,7 +15,7 @@ The **Eigen_CrossCoW Hook** is an advanced Uniswap V4 hook that **matches opposi
 • **In `beforeSwap`**: Consult the AVS for matching trade intents on other chains
 • **If a match is found**: Coordinate the trade and use Across to bridge assets  
 • **In `afterSwap`**: Confirm trade completion and update pool states accordingly
-• **AI-driven matching algorithms** for higher efficiency
+• **Sophisticated matching algorithms** with AI integration planned for future versions
 • **User interfaces** for intent submission and tracking
 • **Partnership opportunities** with other DEXs for expanded matching
 
@@ -42,7 +42,7 @@ Current DEX trading suffers from several critical inefficiencies:
 **Eigen_CrossCoW** implements a sophisticated **Coincidence of Wants (CoW) trading system** that matches opposing trades across chains to minimize taker flow, reduce slippage, and eliminate unnecessary bridge costs.
 
 ### 🎯 **Core Innovation**
-- **EigenLayer AVS** provides decentralized, AI-powered trade matching algorithms
+- **EigenLayer AVS** provides decentralized trade matching with sophisticated algorithms (AI integration planned)
 - **Across Protocol** enables instant cross-chain settlement with minimal fees
 - **Uniswap V4 Hooks** integrate seamlessly into existing AMM infrastructure
 - **Intent-Based Architecture** prioritizes user outcomes over execution paths
@@ -165,8 +165,8 @@ graph TB
     subgraph "EigenLayer AVS Network"
         Intent --> AVS[CrossCoW Service Manager]
         AVS --> Operators[Go-based Operators]
-        Operators --> AI[AI Matching Engine]
-        AI --> Match[Find Optimal Matches]
+        Operators --> Engine[Matching Engine]
+        Engine --> Match[Find Optimal Matches]
         Match --> Execution[Execute Match]
     end
     
@@ -194,8 +194,8 @@ graph TB
 2. `beforeSwap` hook intercepts and creates trade intent
 3. Intent submitted to EigenLayer AVS network
 
-### Phase 2: AI-Powered Matching
-4. Go-based operators run ML algorithms to find matches
+### Phase 2: Intelligent Matching
+4. Go-based operators run sophisticated algorithms to find matches
 5. Cross-chain compatibility and profitability analysis
 6. Match validation through cryptographic proofs
 
@@ -275,9 +275,9 @@ eigen-cross-cow/
 │   │   │   ├── execution.go            # Trade execution logic
 │   │   │   └── metrics.go              # Performance tracking
 │   │   │
-│   │   ├── ai/                         # Machine Learning components
-│   │   │   ├── model.go                # ML model interface
-│   │   │   ├── training.go             # Model training logic
+│   │   ├── ai/                         # Future AI/ML components (planned)
+│   │   │   ├── model.go                # ML model interface (placeholder)
+│   │   │   ├── training.go             # Model training logic (planned)
 │   │   │   ├── prediction.go           # Match prediction
 │   │   │   └── optimization.go         # Algorithm optimization
 │   │   │
@@ -447,9 +447,9 @@ eigen-cross-cow/
 - Slashing conditions and reward distribution
 
 ### 🤖 **3. Go-based AVS Operator (`avs-operator/`)**
-**Purpose**: Runs AI-powered matching algorithms with high performance
+**Purpose**: Runs sophisticated matching algorithms with high performance
 **Key Components**:
-- **Matching Engine**: ML-based trade matching algorithms
+- **Matching Engine**: Advanced trade matching algorithms (AI integration planned)
 - **EigenLayer Integration**: Operator registration, task attestation
 - **Across Integration**: Cross-chain bridge execution
 - **Performance Monitoring**: Real-time metrics and optimization
@@ -512,7 +512,7 @@ sequenceDiagram
     AVS->>Op: Distribute Rewards
 ```
 
-### 🎯 **AI Matching Algorithm Flow**
+### 🎯 **Matching Algorithm Flow**
 
 ```mermaid
 flowchart TD
@@ -533,11 +533,11 @@ flowchart TD
     
     I --> K{Valid Match?}
     K -->|Yes| L[Execute Cross-Chain Trade]
-    K -->|No| M[Improve Algorithm]
+    K -->|No| M[Update Algorithm Parameters]
     
-    L --> N[Update Model Training Data]
+    L --> N[Update Statistics]
     M --> N
-    N --> O[Retrain Model]
+    N --> O[Optimize Matching Logic]
 ```
 
 ## Getting Started
@@ -649,7 +649,7 @@ make slither            # Run static analysis
 The system requires configuration for:
 - **EigenLayer**: Operator registration and staking
 - **Across Protocol**: Bridge integration and fee settings
-- **AI Models**: Machine learning parameters and training data
+- **Algorithm Parameters**: Matching thresholds and optimization settings
 - **Multi-chain**: RPC endpoints and contract addresses
 
 ## Performance Metrics
