@@ -1,43 +1,32 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+/**
+ * @title IBLSApkRegistry
+ * @notice Interface for BLS public key registry
+ */
 interface IBLSApkRegistry {
-    struct ApkUpdate {
-        bytes24 apkHash;
-        uint32 updateBlockNumber;
-        uint32 nextUpdateBlockNumber;
-    }
-
     struct PubkeyRegistrationParams {
         BN254.G1Point pubkeyRegistrationSignature;
         BN254.G1Point pubkeyG1;
         BN254.G2Point pubkeyG2;
     }
 
+    // Events
+    event NewPubkeyRegistration(address indexed operator, BN254.G1Point pubkeyG1, BN254.G2Point pubkeyG2);
+    event OperatorAddedToQuorums(address indexed operator, uint8[] quorumNumbers);
+    event OperatorRemovedFromQuorums(address indexed operator, uint8[] quorumNumbers);
+
+    // Functions
     function registerBLSPublicKey(
         address operator,
         PubkeyRegistrationParams calldata params,
         BN254.G1Point calldata pubkeyRegistrationMessageHash
     ) external;
 
-    function registerOperator(
-        address operator,
-        bytes calldata quorumNumbers
-    ) external;
+    function registerOperator(address operator, uint8[] calldata quorumNumbers) external;
 
-    function deregisterOperator(
-        address operator,
-        bytes calldata quorumNumbers
-    ) external;
-
-    function getApk(uint8 quorumNumber) external view returns (BN254.G1Point memory);
-
-    function getApkHash(uint8 quorumNumber) external view returns (bytes32);
-
-    function getApkUpdateAtIndex(uint8 quorumNumber, uint256 index)
-        external
-        view
-        returns (ApkUpdate memory);
+    function deregisterOperator(address operator, uint8[] calldata quorumNumbers) external;
 
     function getOperatorFromPubkeyHash(bytes32 pubkeyHash) external view returns (address);
 
@@ -45,9 +34,16 @@ interface IBLSApkRegistry {
 
     function getRegisteredPubkey(address operator) external view returns (BN254.G1Point memory, bytes32);
 
-    event NewPubkeyRegistration(address indexed operator, BN254.G1Point pubkeyG1, BN254.G2Point pubkeyG2);
+    function pubkeyHashToOperator(bytes32 pubkeyHash) external view returns (address);
+
+    function operatorToPubkey(address operator) external view returns (BN254.G1Point memory);
+
+    function operatorToPubkeyHash(address operator) external view returns (bytes32);
+
+    function pubkeyCompendiumContract() external view returns (address);
 }
 
+// BN254 library interface
 library BN254 {
     struct G1Point {
         uint256 X;

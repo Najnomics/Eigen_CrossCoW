@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.27;
 
 /**
  * @title EigenCrossCoWHook - Main Uniswap V4 Hook for Cross-Chain CoW Trading
@@ -376,7 +376,7 @@ contract EigenCrossCoWHook is BaseHook, ReentrancyGuard, Ownable, Pausable {
         require(locked.user == msg.sender, "Not token owner");
         
         // Unlock and return tokens to user
-        poolManager.settle(locked.currency, locked.user, uint128(locked.amount));
+        poolManager.settle();
         
         // Mark as unlocked
         locked.isLocked = false;

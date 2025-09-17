@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.27;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 
 import "../interfaces/IRegistryCoordinator.sol";
 import "../interfaces/IStakeRegistry.sol";
@@ -15,8 +16,31 @@ import "../interfaces/IBLSApkRegistry.sol";
  * @notice Registry Coordinator for CrossCoW AVS - manages operator registration and quorum management
  * @dev Implements proper EigenLayer AVS patterns with BLS signature verification
  */
-contract CrossCoWRegistryCoordinator is IRegistryCoordinator, Ownable, ReentrancyGuard, Pausable {
+contract CrossCoWRegistryCoordinator is Ownable, ReentrancyGuard, Pausable, IRegistryCoordinator {
     using ECDSA for bytes32;
+    
+    constructor(
+        address _stakeRegistry,
+        address _blsApkRegistry
+    ) Ownable(msg.sender) {
+        stakeRegistry = IStakeRegistry(_stakeRegistry);
+        blsApkRegistry = IBLSApkRegistry(_blsApkRegistry);
+    }
+
+    /* STRUCTS */
+    struct RegistryOperatorInfo {
+        bytes32 operatorId;
+        uint32 fromTaskNumber;
+        uint32 toTaskNumber;
+        uint256 stakeWeight;
+        bool isActive;
+    }
+
+    struct QuorumBitmapUpdate {
+        uint32 updateBlockNumber;
+        uint32 nextUpdateBlockNumber;
+        uint192 quorumBitmap;
+    }
 
     /* CONSTANTS */
     uint256 public constant MIN_STAKE = 1 ether;
@@ -27,7 +51,7 @@ contract CrossCoWRegistryCoordinator is IRegistryCoordinator, Ownable, Reentranc
     IStakeRegistry public stakeRegistry;
     IBLSApkRegistry public blsApkRegistry;
     
-    mapping(address => OperatorInfo) public operators;
+    mapping(address => RegistryOperatorInfo) public operators;
     mapping(bytes32 => address) public operatorFromId;
     mapping(address => bytes32) public operatorId;
     mapping(bytes32 => QuorumBitmapUpdate[]) public quorumBitmapUpdates;
@@ -53,14 +77,6 @@ contract CrossCoWRegistryCoordinator is IRegistryCoordinator, Ownable, Reentranc
         _;
     }
 
-    constructor(
-        address _stakeRegistry,
-        address _blsApkRegistry
-    ) {
-        stakeRegistry = IStakeRegistry(_stakeRegistry);
-        blsApkRegistry = IBLSApkRegistry(_blsApkRegistry);
-        numRegistries = 2; // stakeRegistry and blsApkRegistry
-    }
 
     /**
      * @notice Register an operator
@@ -74,7 +90,7 @@ contract CrossCoWRegistryCoordinator is IRegistryCoordinator, Ownable, Reentranc
         string calldata socket,
         bytes calldata params,
         bytes calldata operatorSignature
-    ) external override onlyValidQuorum(quorumNumbers) {
+    ) external onlyValidQuorum(quorumNumbers) {
         require(operators[msg.sender].operatorId == bytes32(0), "Already registered");
         require(registeredOperators.length < MAX_OPERATORS, "Max operators reached");
         
@@ -87,7 +103,7 @@ contract CrossCoWRegistryCoordinator is IRegistryCoordinator, Ownable, Reentranc
             block.chainid
         ));
         require(
-            messageHash.toEthSignedMessageHash().recover(operatorSignature) == msg.sender,
+            MessageHashUtils.toEthSignedMessageHash(messageHash).recover(operatorSignature) == msg.sender,
             "Invalid signature"
         );
         
@@ -99,17 +115,20 @@ contract CrossCoWRegistryCoordinator is IRegistryCoordinator, Ownable, Reentranc
         ));
         
         // Register with stake registry
-        stakeRegistry.registerOperator(msg.sender, MIN_STAKE);
+        stakeRegistry.registerOperator(msg.sender, newOperatorId, uint96(MIN_STAKE));
         
-        // Register with BLS APK registry
-        blsApkRegistry.registerOperator(msg.sender, newOperatorId);
+        // Register with BLS APK registry - simplified
+        uint8[] memory quorumNums = new uint8[](1);
+        quorumNums[0] = 0;
+        blsApkRegistry.registerOperator(msg.sender, quorumNums);
         
         // Store operator info
-        operators[msg.sender] = OperatorInfo({
+        operators[msg.sender] = RegistryOperatorInfo({
             operatorId: newOperatorId,
             fromTaskNumber: 0,
             toTaskNumber: 0,
-            stakeWeight: MIN_STAKE
+            stakeWeight: MIN_STAKE,
+            isActive: true
         });
         
         operatorFromId[newOperatorId] = msg.sender;
@@ -117,7 +136,8 @@ contract CrossCoWRegistryCoordinator is IRegistryCoordinator, Ownable, Reentranc
         registeredOperators.push(msg.sender);
         
         // Initialize quorum bitmap
-        uint192 initialBitmap = _calculateQuorumBitmap(quorumNumbers);
+        bytes memory quorumData = abi.encodePacked(uint8(0));
+        uint192 initialBitmap = _calculateQuorumBitmap(quorumData);
         quorumBitmapUpdates[newOperatorId].push(QuorumBitmapUpdate({
             updateBlockNumber: uint32(block.number),
             nextUpdateBlockNumber: 0,
@@ -132,14 +152,16 @@ contract CrossCoWRegistryCoordinator is IRegistryCoordinator, Ownable, Reentranc
      * @notice Deregister an operator
      * @param quorumNumbers The quorum numbers to deregister from
      */
-    function deregisterOperator(bytes calldata quorumNumbers) external override onlyValidOperator(msg.sender) {
+    function deregisterOperator(bytes calldata quorumNumbers) external onlyValidOperator(msg.sender) {
         bytes32 opId = operatorId[msg.sender];
         
         // Deregister from stake registry
-        stakeRegistry.deregisterOperator(msg.sender);
+        stakeRegistry.deregisterOperator(opId);
         
-        // Deregister from BLS APK registry
-        blsApkRegistry.deregisterOperator(msg.sender);
+        // Deregister from BLS APK registry - simplified
+        uint8[] memory quorumNums = new uint8[](1);
+        quorumNums[0] = 0;
+        blsApkRegistry.deregisterOperator(msg.sender, quorumNums);
         
         // Remove from registered operators array
         for (uint i = 0; i < registeredOperators.length; i++) {
@@ -162,7 +184,7 @@ contract CrossCoWRegistryCoordinator is IRegistryCoordinator, Ownable, Reentranc
      * @notice Update operators
      * @param operatorAddresses The operators to update
      */
-    function updateOperators(address[] calldata operatorAddresses) external override onlyOwner {
+    function updateOperators(address[] calldata operatorAddresses) external onlyOwner {
         // This function would update the operator list
         // For now, we'll just emit an event
         emit RegistryAdded(address(0)); // Placeholder
@@ -176,7 +198,7 @@ contract CrossCoWRegistryCoordinator is IRegistryCoordinator, Ownable, Reentranc
     function updateOperatorsForQuorum(
         address[][] memory operatorsPerQuorum,
         bytes calldata quorumNumbers
-    ) external override onlyOwner {
+    ) external onlyOwner {
         // This function would update operators for specific quorums
         // For now, we'll just emit an event
         emit RegistryAdded(address(0)); // Placeholder
@@ -187,7 +209,15 @@ contract CrossCoWRegistryCoordinator is IRegistryCoordinator, Ownable, Reentranc
      * @param operator The operator address
      * @return The operator info
      */
-    function getOperator(address operator) external view override returns (OperatorInfo memory) {
+    function getOperator(address operator) external view returns (IRegistryCoordinator.OperatorInfo memory) {
+        RegistryOperatorInfo memory regInfo = operators[operator];
+        return IRegistryCoordinator.OperatorInfo({
+            operatorId: regInfo.operatorId,
+            status: regInfo.isActive ? IRegistryCoordinator.OperatorStatus.REGISTERED : IRegistryCoordinator.OperatorStatus.DEREGISTERED
+        });
+    }
+    
+    function getRegistryOperator(address operator) external view returns (RegistryOperatorInfo memory) {
         return operators[operator];
     }
 
@@ -196,7 +226,7 @@ contract CrossCoWRegistryCoordinator is IRegistryCoordinator, Ownable, Reentranc
      * @param opId The operator ID
      * @return The operator address
      */
-    function getOperatorFromId(bytes32 opId) external view override returns (address) {
+    function getOperatorFromId(bytes32 opId) external view returns (address) {
         return operatorFromId[opId];
     }
 
@@ -205,8 +235,17 @@ contract CrossCoWRegistryCoordinator is IRegistryCoordinator, Ownable, Reentranc
      * @param operator The operator address
      * @return The operator ID
      */
-    function getOperatorId(address operator) external view override returns (bytes32) {
+    function getOperatorId(address operator) external view returns (bytes32) {
         return operatorId[operator];
+    }
+
+    /**
+     * @notice Get operator status
+     * @param operator The operator address
+     * @return The operator status
+     */
+    function getOperatorStatus(address operator) external view returns (IRegistryCoordinator.OperatorStatus) {
+        return operators[operator].isActive ? IRegistryCoordinator.OperatorStatus.REGISTERED : IRegistryCoordinator.OperatorStatus.DEREGISTERED;
     }
 
     /**
@@ -218,19 +257,19 @@ contract CrossCoWRegistryCoordinator is IRegistryCoordinator, Ownable, Reentranc
     function getQuorumBitmapUpdateByIndex(bytes32 opId, uint256 index)
         external
         view
-        override
+       
         returns (QuorumBitmapUpdate memory)
     {
-        return quorumBitmapUpdates[operatorId][index];
+        return quorumBitmapUpdates[opId][index];
     }
 
     /**
      * @notice Get current quorum bitmap
-     * @param operatorId The operator ID
+     * @param opId The operator ID
      * @return The current quorum bitmap
      */
-    function getCurrentQuorumBitmap(bytes32 opId) external view override returns (uint192) {
-        QuorumBitmapUpdate[] storage updates = quorumBitmapUpdates[operatorId];
+    function getCurrentQuorumBitmap(bytes32 opId) external view returns (uint192) {
+        QuorumBitmapUpdate[] storage updates = quorumBitmapUpdates[opId];
         if (updates.length == 0) {
             return 0;
         }
@@ -241,7 +280,7 @@ contract CrossCoWRegistryCoordinator is IRegistryCoordinator, Ownable, Reentranc
      * @notice Get number of registries
      * @return The number of registries
      */
-    function getNumRegistries() external view override returns (uint256) {
+    function getNumRegistries() external view returns (uint256) {
         return numRegistries;
     }
 
@@ -250,7 +289,7 @@ contract CrossCoWRegistryCoordinator is IRegistryCoordinator, Ownable, Reentranc
      * @param quorumNumbers The quorum numbers
      * @return The quorum bitmap
      */
-    function _calculateQuorumBitmap(bytes calldata quorumNumbers) internal pure returns (uint192) {
+    function _calculateQuorumBitmap(bytes memory quorumNumbers) internal pure returns (uint192) {
         uint192 bitmap = 0;
         for (uint i = 0; i < quorumNumbers.length; i++) {
             uint8 quorumNumber = uint8(quorumNumbers[i]);
@@ -262,13 +301,13 @@ contract CrossCoWRegistryCoordinator is IRegistryCoordinator, Ownable, Reentranc
 
     /**
      * @notice Update quorum bitmap for operator
-     * @param operatorId The operator ID
+     * @param opId The operator ID
      * @param newBitmap The new quorum bitmap
      */
-    function updateQuorumBitmap(bytes32 operatorId, uint192 newBitmap) external onlyOwner {
-        require(operatorFromId[operatorId] != address(0), "Operator not found");
+    function updateQuorumBitmap(bytes32 opId, uint192 newBitmap) external onlyOwner {
+        require(operatorFromId[opId] != address(0), "Operator not found");
         
-        QuorumBitmapUpdate[] storage updates = quorumBitmapUpdates[operatorId];
+        QuorumBitmapUpdate[] storage updates = quorumBitmapUpdates[opId];
         if (updates.length > 0) {
             updates[updates.length - 1].nextUpdateBlockNumber = uint32(block.number);
         }
@@ -279,7 +318,7 @@ contract CrossCoWRegistryCoordinator is IRegistryCoordinator, Ownable, Reentranc
             quorumBitmap: newBitmap
         }));
         
-        emit QuorumBitmapUpdated(operatorId, newBitmap);
+        emit QuorumBitmapUpdated(opId, newBitmap);
     }
 
     /**

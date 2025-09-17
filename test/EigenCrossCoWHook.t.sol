@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.27;
 
 import "forge-std/Test.sol";
 import "forge-std/console.sol";
@@ -15,6 +15,9 @@ import "../src/avs/registry/CrossCoWBLSApkRegistry.sol";
 import "../src/avs/aggregator/CrossCoWAggregator.sol";
 import "../src/integration/AcrossIntegration.sol";
 import "../src/libraries/IntentLib.sol";
+import "../src/avs/interfaces/IBLSApkRegistry.sol";
+import "@uniswap/v4-core/types/PoolId.sol";
+import "@uniswap/v4-core/types/Currency.sol";
 
 // Mock contracts for testing
 contract MockERC20 is ERC20 {
@@ -93,7 +96,7 @@ contract EigenCrossCoWHookTest is Test {
         acrossHubPool = new MockAcrossHubPool();
         
         // Deploy registry contracts
-        stakeRegistry = new CrossCoWStakeRegistry(address(0)); // ETH staking
+        stakeRegistry = new CrossCoWStakeRegistry(); // ETH staking
         blsApkRegistry = new CrossCoWBLSApkRegistry();
         registryCoordinator = new CrossCoWRegistryCoordinator(
             address(stakeRegistry),
@@ -108,19 +111,11 @@ contract EigenCrossCoWHookTest is Test {
         );
         
         // Deploy aggregator
-        aggregator = new CrossCoWAggregator(
-            address(serviceManager),
-            address(registryCoordinator),
-            address(stakeRegistry),
-            address(blsApkRegistry),
-            address(0) // Task manager will be deployed later
-        );
+        aggregator = new CrossCoWAggregator();
         
         // Deploy across integration
         acrossIntegration = new AcrossIntegration(
-            address(acrossHubPool),
-            address(0), // Mock relayer
-            address(0)  // Mock spoke pool
+            IAcrossHubPool(address(acrossHubPool))
         );
         
         // Deploy task manager
@@ -134,9 +129,8 @@ contract EigenCrossCoWHookTest is Test {
         // Deploy main hook
         hook = new EigenCrossCoWHook(
             IPoolManager(address(poolManager)),
-            address(taskManager),
-            address(serviceManager),
-            address(acrossIntegration)
+            serviceManager,
+            IAcrossHubPool(address(acrossHubPool))
         );
         
         // Setup initial state
@@ -159,9 +153,8 @@ contract EigenCrossCoWHookTest is Test {
 
     function testInitialization() public {
         assertEq(address(hook.poolManager()), address(poolManager));
-        assertEq(address(hook.taskManager()), address(taskManager));
         assertEq(address(hook.serviceManager()), address(serviceManager));
-        assertEq(address(hook.acrossIntegration()), address(acrossIntegration));
+        assertEq(address(hook.acrossHubPool()), address(acrossHubPool));
         assertTrue(hook.owner() == owner);
     }
 
@@ -170,17 +163,25 @@ contract EigenCrossCoWHookTest is Test {
         vm.startPrank(operator1);
         
         // Register with BLS APK registry
-        blsApkRegistry.registerOperator(
+        // Create BLS public key registration params
+        BN254.G1Point memory pubkeyG1 = BN254.G1Point(1, 2);
+        BN254.G2Point memory pubkeyG2 = BN254.G2Point([uint256(1), uint256(2)], [uint256(3), uint256(4)]);
+        BN254.G1Point memory signature = BN254.G1Point(5, 6);
+        
+        IBLSApkRegistry.PubkeyRegistrationParams memory params = IBLSApkRegistry.PubkeyRegistrationParams({
+            pubkeyRegistrationSignature: signature,
+            pubkeyG1: pubkeyG1,
+            pubkeyG2: pubkeyG2
+        });
+        
+        blsApkRegistry.registerBLSPublicKey(
             operator1,
-            keccak256(abi.encodePacked(operator1, "key1")),
-            IBLSApkRegistry.BLSPublicKey({
-                g1Pubkey: abi.encodePacked(operator1, "g1"),
-                g2Pubkey: abi.encodePacked(operator1, "g2")
-            })
+            params,
+            signature
         );
         
         // Register with stake registry
-        stakeRegistry.registerOperator{value: STAKE_AMOUNT}(operator1, STAKE_AMOUNT);
+        stakeRegistry.registerOperator(operator1, bytes32(uint256(uint160(operator1))), uint96(STAKE_AMOUNT));
         
         // Register with service manager
         serviceManager.registerOperator{value: STAKE_AMOUNT}(abi.encodePacked("signature1"));
@@ -199,28 +200,36 @@ contract EigenCrossCoWHookTest is Test {
         _registerOperator(operator2);
         
         // Create trade intents
-        IntentLib.Intent memory intent1 = IntentLib.Intent({
+        IntentLib.TradeIntent memory intent1 = IntentLib.TradeIntent({
+            intentId: bytes32(uint256(1)),
             user: user1,
-            inputToken: address(tokenA),
-            outputToken: address(tokenB),
-            inputAmount: TRADE_AMOUNT,
-            minOutputAmount: TRADE_AMOUNT * 95 / 100, // 5% slippage
-            sourceChain: 1,
-            destinationChain: 2,
-            deadline: uint32(block.timestamp + 3600),
-            signature: abi.encodePacked("signature1")
+            poolId: PoolId.wrap(bytes32(uint256(1))),
+            tokenIn: Currency.wrap(address(tokenA)),
+            tokenOut: Currency.wrap(address(tokenB)),
+            amountIn: TRADE_AMOUNT,
+            amountOutMinimum: TRADE_AMOUNT * 95 / 100,
+            deadline: block.timestamp + 3600,
+            originChain: 1,
+            targetChain: 2,
+            isActive: true,
+            createdAt: block.timestamp,
+            salt: bytes32(uint256(1))
         });
         
-        IntentLib.Intent memory intent2 = IntentLib.Intent({
+        IntentLib.TradeIntent memory intent2 = IntentLib.TradeIntent({
+            intentId: bytes32(uint256(2)),
             user: user2,
-            inputToken: address(tokenB),
-            outputToken: address(tokenA),
-            inputAmount: TRADE_AMOUNT,
-            minOutputAmount: TRADE_AMOUNT * 95 / 100, // 5% slippage
-            sourceChain: 2,
-            destinationChain: 1,
-            deadline: uint32(block.timestamp + 3600),
-            signature: abi.encodePacked("signature2")
+            poolId: PoolId.wrap(bytes32(uint256(2))),
+            tokenIn: Currency.wrap(address(tokenB)),
+            tokenOut: Currency.wrap(address(tokenA)),
+            amountIn: TRADE_AMOUNT,
+            amountOutMinimum: TRADE_AMOUNT * 95 / 100,
+            deadline: block.timestamp + 3600,
+            originChain: 2,
+            targetChain: 1,
+            isActive: true,
+            createdAt: block.timestamp,
+            salt: bytes32(uint256(2))
         });
         
         // Create matched trade
@@ -449,7 +458,7 @@ contract EigenCrossCoWHookTest is Test {
     }
     
     function _createTestTask() internal {
-        IntentLib.Intent memory intent1 = IntentLib.Intent({
+        IntentLib.TradeIntent memory intent1 = IntentLib.TradeIntent({
             user: user1,
             inputToken: address(tokenA),
             outputToken: address(tokenB),
@@ -461,7 +470,7 @@ contract EigenCrossCoWHookTest is Test {
             signature: abi.encodePacked("signature1")
         });
         
-        IntentLib.Intent memory intent2 = IntentLib.Intent({
+        IntentLib.TradeIntent memory intent2 = IntentLib.TradeIntent({
             user: user2,
             inputToken: address(tokenB),
             outputToken: address(tokenA),

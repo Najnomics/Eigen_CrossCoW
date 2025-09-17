@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.27;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -14,8 +14,10 @@ import "../interfaces/IStakeRegistry.sol";
  * @notice Stake Registry for CrossCoW AVS - manages operator stakes and slashing
  * @dev Implements proper EigenLayer AVS patterns with stake management
  */
-contract CrossCoWStakeRegistry is IStakeRegistry, Ownable, ReentrancyGuard, Pausable {
+contract CrossCoWStakeRegistry is Ownable, ReentrancyGuard, Pausable, IStakeRegistry {
     using SafeERC20 for IERC20;
+    
+    constructor() Ownable(msg.sender) {}
 
     /* CONSTANTS */
     uint256 public constant MIN_STAKE = 1 ether;
@@ -64,64 +66,53 @@ contract CrossCoWStakeRegistry is IStakeRegistry, Ownable, ReentrancyGuard, Paus
         _;
     }
 
-    constructor(address _stakeToken) {
-        stakeToken = IERC20(_stakeToken);
-    }
 
     /**
      * @notice Register an operator with stake
      * @param operator The operator address
-     * @param stakeAmount The stake amount
+     * @param operatorId The operator ID
+     * @param stake The stake amount
      */
-    function registerOperator(address operator, uint256 stakeAmount) external override onlyValidStake(stakeAmount) {
+    function registerOperator(
+        address operator,
+        bytes32 operatorId,
+        uint96 stake
+    ) external override {
         require(!operatorStakes[operator].isActive, "Already registered");
-        
-        // Transfer stake from caller to contract
-        if (address(stakeToken) == address(0)) {
-            // ETH staking
-            require(msg.value >= stakeAmount, "Insufficient ETH");
-            require(operator == msg.sender, "Must stake for yourself");
-        } else {
-            // ERC20 staking
-            stakeToken.safeTransferFrom(msg.sender, address(this), stakeAmount);
-        }
+        require(stake >= MIN_STAKE, "Insufficient stake");
         
         // Initialize operator stake
         operatorStakes[operator] = OperatorStake({
-            operator: operator,
-            stake: stakeAmount,
-            isActive: true,
-            registrationTime: block.timestamp,
+            amount: stake,
             lastUpdateTime: block.timestamp,
-            slashedAmount: 0,
-            rewardAmount: 0
+            isActive: true
         });
         
-        totalStakes[operator] = stakeAmount;
-        totalStake += stakeAmount;
+        totalStakes[operator] = stake;
+        totalStake += stake;
         stakedOperators.push(operator);
         
-        emit OperatorRegistered(operator, stakeAmount);
-        emit StakeDeposited(operator, stakeAmount);
+        emit OperatorRegistered(operator, stake);
+        emit StakeDeposited(operator, stake);
     }
 
     /**
      * @notice Deregister an operator and withdraw stake
      * @param operator The operator address
      */
-    function deregisterOperator(address operator) external override onlyValidOperator(operator) {
+    function deregisterOperator(address operator) external onlyValidOperator(operator) {
         require(operator == msg.sender || msg.sender == owner(), "Not authorized");
         
         OperatorStake storage stake = operatorStakes[operator];
         require(stake.isActive, "Not active");
         
         // Calculate withdrawable amount (stake - slashed + rewards)
-        uint256 withdrawableAmount = stake.stake - stake.slashedAmount + stake.rewardAmount;
+        uint256 withdrawableAmount = stake.amount - slashedAmounts[operator] + rewardAmounts[operator];
         require(withdrawableAmount > 0, "No withdrawable amount");
         
         // Update state
         stake.isActive = false;
-        totalStake -= stake.stake;
+        totalStake -= stake.amount;
         
         // Remove from staked operators array
         for (uint i = 0; i < stakedOperators.length; i++) {
@@ -150,13 +141,13 @@ contract CrossCoWStakeRegistry is IStakeRegistry, Ownable, ReentrancyGuard, Paus
      * @param operator The operator address
      * @param newStake The new stake amount
      */
-    function updateStake(address operator, uint256 newStake) external override onlyValidOperator(operator) {
+    function updateStake(address operator, uint256 newStake) external onlyValidOperator(operator) {
         require(operator == msg.sender || msg.sender == owner(), "Not authorized");
         require(newStake >= MIN_STAKE, "Insufficient stake");
         require(newStake <= MAX_STAKE, "Excessive stake");
         
         OperatorStake storage stake = operatorStakes[operator];
-        uint256 currentStake = stake.stake;
+        uint256 currentStake = stake.amount;
         
         if (newStake > currentStake) {
             // Increase stake
@@ -177,7 +168,7 @@ contract CrossCoWStakeRegistry is IStakeRegistry, Ownable, ReentrancyGuard, Paus
         } else if (newStake < currentStake) {
             // Decrease stake
             uint256 decreaseAmount = currentStake - newStake;
-            require(decreaseAmount <= currentStake - stake.slashedAmount, "Cannot withdraw slashed amount");
+            require(decreaseAmount <= currentStake - slashedAmounts[operator], "Cannot withdraw slashed amount");
             
             totalStake -= decreaseAmount;
             
@@ -190,7 +181,7 @@ contract CrossCoWStakeRegistry is IStakeRegistry, Ownable, ReentrancyGuard, Paus
             }
         }
         
-        stake.stake = newStake;
+        stake.amount = newStake;
         stake.lastUpdateTime = block.timestamp;
         totalStakes[operator] = newStake;
         
@@ -203,16 +194,15 @@ contract CrossCoWStakeRegistry is IStakeRegistry, Ownable, ReentrancyGuard, Paus
      * @param amount The amount to slash
      * @param reason The reason for slashing
      */
-    function slashOperator(address operator, uint256 amount, string calldata reason) external override onlyOwner {
+    function slashOperator(address operator, uint256 amount, string calldata reason) external onlyOwner {
         require(operatorStakes[operator].isActive, "Operator not active");
-        require(amount <= operatorStakes[operator].stake, "Insufficient stake");
+        require(amount <= operatorStakes[operator].amount, "Insufficient stake");
         
         OperatorStake storage stake = operatorStakes[operator];
-        stake.slashedAmount += amount;
-        stake.stake -= amount;
+        slashedAmounts[operator] += amount;
+        stake.amount -= amount;
         totalStake -= amount;
         totalSlashed += amount;
-        slashedAmounts[operator] += amount;
         
         emit OperatorSlashed(operator, amount, reason);
     }
@@ -222,13 +212,11 @@ contract CrossCoWStakeRegistry is IStakeRegistry, Ownable, ReentrancyGuard, Paus
      * @param operator The operator address
      * @param amount The reward amount
      */
-    function rewardOperator(address operator, uint256 amount) external override onlyOwner {
+    function rewardOperator(address operator, uint256 amount) external onlyOwner {
         require(operatorStakes[operator].isActive, "Operator not active");
         
-        OperatorStake storage stake = operatorStakes[operator];
-        stake.rewardAmount += amount;
-        totalRewards += amount;
         rewardAmounts[operator] += amount;
+        totalRewards += amount;
         
         emit OperatorRewarded(operator, amount);
     }
@@ -238,7 +226,7 @@ contract CrossCoWStakeRegistry is IStakeRegistry, Ownable, ReentrancyGuard, Paus
      * @param operator The operator address
      * @return The operator stake info
      */
-    function getOperatorStake(address operator) external view override returns (OperatorStake memory) {
+    function getOperatorStake(address operator) external view returns (OperatorStake memory) {
         return operatorStakes[operator];
     }
 
@@ -246,7 +234,7 @@ contract CrossCoWStakeRegistry is IStakeRegistry, Ownable, ReentrancyGuard, Paus
      * @notice Get total stake
      * @return The total stake amount
      */
-    function getTotalStake() external view override returns (uint256) {
+    function getTotalStake() external view returns (uint256) {
         return totalStake;
     }
 
@@ -285,7 +273,7 @@ contract CrossCoWStakeRegistry is IStakeRegistry, Ownable, ReentrancyGuard, Paus
         if (!stake.isActive) {
             return 0;
         }
-        return stake.stake - stake.slashedAmount + stake.rewardAmount;
+        return stake.amount - slashedAmounts[operator] + rewardAmounts[operator];
     }
 
     /**
@@ -320,5 +308,82 @@ contract CrossCoWStakeRegistry is IStakeRegistry, Ownable, ReentrancyGuard, Paus
      */
     receive() external payable {
         // Allow ETH to be sent to this contract for staking
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                         INTERFACE IMPLEMENTATIONS
+    //////////////////////////////////////////////////////////////*/
+
+    function deregisterOperator(bytes32 operatorId) external override {
+        // Find operator by ID - simplified implementation
+        for (uint i = 0; i < stakedOperators.length; i++) {
+            address operator = stakedOperators[i];
+            if (keccak256(abi.encodePacked(operator)) == operatorId) {
+                require(operatorStakes[operator].isActive, "Not registered");
+                operatorStakes[operator].isActive = false;
+                totalStake -= operatorStakes[operator].amount;
+                emit OperatorDeregistered(operator);
+                break;
+            }
+        }
+    }
+
+    function updateOperatorStake(
+        address operator,
+        bytes32 operatorId,
+        uint96 stake
+    ) external override {
+        require(operatorStakes[operator].isActive, "Not registered");
+        uint256 oldStake = operatorStakes[operator].amount;
+        operatorStakes[operator].amount = stake;
+        operatorStakes[operator].lastUpdateTime = block.timestamp;
+        
+        totalStake = totalStake - oldStake + stake;
+        emit StakeUpdated(operator, stake);
+    }
+
+    function getCurrentStake(bytes32 operatorId, uint8 quorumNumber) 
+        external view override returns (uint96) {
+        // Simplified implementation - return first match
+        for (uint i = 0; i < stakedOperators.length; i++) {
+            address operator = stakedOperators[i];
+            if (keccak256(abi.encodePacked(operator)) == operatorId) {
+                return uint96(operatorStakes[operator].amount);
+            }
+        }
+        return 0;
+    }
+
+    function getStakeAtBlockNumberAndIndex(
+        uint8 quorumNumber,
+        uint32 blockNumber,
+        bytes32 operatorId,
+        uint256 index
+    ) external view override returns (uint96) {
+        // Simplified implementation
+        return this.getCurrentStake(operatorId, quorumNumber);
+    }
+
+    function getLatestStakeUpdate(bytes32 operatorId, uint8 quorumNumber)
+        external view override returns (StakeUpdate memory) {
+        // Simplified implementation
+        uint96 stake = this.getCurrentStake(operatorId, quorumNumber);
+        return StakeUpdate({
+            updateBlockNumber: uint32(block.number),
+            nextUpdateBlockNumber: 0,
+            stake: stake
+        });
+    }
+
+    function getStakeUpdateAtIndex(uint8 quorumNumber, bytes32 operatorId, uint256 index)
+        external view override returns (StakeUpdate memory) {
+        // Simplified implementation
+        return this.getLatestStakeUpdate(operatorId, quorumNumber);
+    }
+
+    function getStakeHistoryLength(bytes32 operatorId, uint8 quorumNumber) 
+        external view override returns (uint256) {
+        // Simplified implementation
+        return 1;
     }
 }

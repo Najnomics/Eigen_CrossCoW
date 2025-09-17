@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.27;
 
 import "forge-std/Test.sol";
 import "forge-std/console.sol";
@@ -44,7 +44,7 @@ contract CrossCoWAggregatorComprehensiveTest is Test {
         stakeToken = new MockERC20("StakeToken", "STAKE");
         
         // Deploy registry contracts
-        stakeRegistry = new CrossCoWStakeRegistry(address(stakeToken));
+        stakeRegistry = new CrossCoWStakeRegistry();
         blsApkRegistry = new CrossCoWBLSApkRegistry();
         registryCoordinator = new CrossCoWRegistryCoordinator(
             address(stakeRegistry),
@@ -59,13 +59,7 @@ contract CrossCoWAggregatorComprehensiveTest is Test {
         );
         
         // Deploy aggregator
-        aggregator = new CrossCoWAggregator(
-            address(serviceManager),
-            address(registryCoordinator),
-            address(stakeRegistry),
-            address(blsApkRegistry),
-            address(0) // Task manager
-        );
+        aggregator = new CrossCoWAggregator();
         
         // Fund test accounts
         stakeToken.mint(operator1, 1000 * 10**18);
@@ -88,49 +82,7 @@ contract CrossCoWAggregatorComprehensiveTest is Test {
         assertTrue(aggregator.owner() == owner);
     }
 
-    function test_002_InitializationWithZeroServiceManager() public {
-        vm.expectRevert("Invalid service manager");
-        new CrossCoWAggregator(
-            address(0),
-            address(registryCoordinator),
-            address(stakeRegistry),
-            address(blsApkRegistry),
-            address(0)
-        );
-    }
-
-    function test_003_InitializationWithZeroRegistryCoordinator() public {
-        vm.expectRevert("Invalid registry coordinator");
-        new CrossCoWAggregator(
-            address(serviceManager),
-            address(0),
-            address(stakeRegistry),
-            address(blsApkRegistry),
-            address(0)
-        );
-    }
-
-    function test_004_InitializationWithZeroStakeRegistry() public {
-        vm.expectRevert("Invalid stake registry");
-        new CrossCoWAggregator(
-            address(serviceManager),
-            address(registryCoordinator),
-            address(0),
-            address(blsApkRegistry),
-            address(0)
-        );
-    }
-
-    function test_005_InitializationWithZeroBlsApkRegistry() public {
-        vm.expectRevert("Invalid BLS APK registry");
-        new CrossCoWAggregator(
-            address(serviceManager),
-            address(registryCoordinator),
-            address(stakeRegistry),
-            address(0),
-            address(0)
-        );
-    }
+    // Note: Constructor validation tests removed since aggregator no longer takes constructor parameters
 
     // ============ TASK SUBMISSION TESTS ============
 
@@ -425,8 +377,8 @@ contract CrossCoWAggregatorComprehensiveTest is Test {
         vm.prank(owner);
         aggregator.resolveChallenge(0, true);
         
-        CrossCoWAggregator.Challenge memory challenge = aggregator.challenges(0);
-        assertTrue(challenge.isResolved);
+        (address challengeChallenger, uint32 taskIndex, string memory reason, uint256 timestamp, bool isResolved) = aggregator.challenges(0);
+        assertTrue(isResolved);
     }
 
     function test_031_NonOwnerCannotResolveChallenge() public {
@@ -692,7 +644,7 @@ contract CrossCoWAggregatorComprehensiveTest is Test {
         for (uint i = 0; i < 50; i++) {
             bytes32 taskHash = keccak256(abi.encodePacked("task", i));
             vm.prank(owner);
-            aggregator.submitTask(i, taskHash);
+            aggregator.submitTask(uint32(i), taskHash);
         }
         assertEq(aggregator.latestTaskIndex(), 49);
     }

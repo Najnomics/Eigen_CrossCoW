@@ -42,14 +42,7 @@ contract CrossCoWServiceManager is ICrossCoWServiceManager, Ownable, ReentrancyG
     uint256 public totalStake;
     uint256 public totalRewards;
     
-    /* EVENTS */
-    event OperatorRegistered(address indexed operator, uint256 stake);
-    event OperatorDeregistered(address indexed operator);
-    event TaskCreated(uint32 indexed taskIndex, bytes32 indexed tradeId, address indexed assignedOperator);
-    event TaskCompleted(uint32 indexed taskIndex, bytes32 indexed tradeId, bool success);
-    event TaskTimeout(uint32 indexed taskIndex, bytes32 indexed tradeId);
-    event OperatorSlashed(address indexed operator, uint256 amount, string reason);
-    event OperatorRewarded(address indexed operator, uint256 amount);
+    /* EVENTS - Additional events not in interface */
     event StakeDeposited(address indexed operator, uint256 amount);
     event StakeWithdrawn(address indexed operator, uint256 amount);
 
@@ -69,7 +62,7 @@ contract CrossCoWServiceManager is ICrossCoWServiceManager, Ownable, ReentrancyG
         address _registryCoordinator,
         address _stakeRegistry,
         address _blsApkRegistry
-    ) {
+    ) Ownable(msg.sender) {
         registryCoordinator = IRegistryCoordinator(_registryCoordinator);
         stakeRegistry = IStakeRegistry(_stakeRegistry);
         blsApkRegistry = IBLSApkRegistry(_blsApkRegistry);
@@ -204,6 +197,20 @@ contract CrossCoWServiceManager is ICrossCoWServiceManager, Ownable, ReentrancyG
         }
         
         emit TaskCompleted(response.taskIndex, response.tradeId, response.success);
+    }
+
+    /**
+     * @notice Reward an operator
+     * @param operator The operator to reward
+     * @param amount The amount to reward
+     */
+    function rewardOperator(address operator, uint256 amount) external override onlyOwner {
+        require(operators[operator].isActive, "Operator not active");
+        
+        operatorRewards[operator] += amount;
+        totalRewards += amount;
+        
+        emit OperatorRewarded(operator, amount);
     }
 
     /**

@@ -1,11 +1,12 @@
 
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.27;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/Pausable.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 
 import "../interfaces/ICrossCoWServiceManager.sol";
 import "../interfaces/IRegistryCoordinator.sol";
@@ -21,6 +22,8 @@ import "../../libraries/IntentLib.sol";
  */
 contract CrossCoWAggregator is Ownable, ReentrancyGuard, Pausable {
     using ECDSA for bytes32;
+
+    constructor() Ownable(msg.sender) {}
 
     /* CONSTANTS */
     uint256 public constant MIN_OPERATORS = 2;
@@ -101,19 +104,6 @@ contract CrossCoWAggregator is Ownable, ReentrancyGuard, Pausable {
         _;
     }
 
-    constructor(
-        address _serviceManager,
-        address _registryCoordinator,
-        address _stakeRegistry,
-        address _blsApkRegistry,
-        address _taskManager
-    ) {
-        serviceManager = ICrossCoWServiceManager(_serviceManager);
-        registryCoordinator = IRegistryCoordinator(_registryCoordinator);
-        stakeRegistry = IStakeRegistry(_stakeRegistry);
-        blsApkRegistry = IBLSApkRegistry(_blsApkRegistry);
-        taskManager = ICrossCoWTaskManager(_taskManager);
-    }
 
     /**
      * @notice Submit a task for aggregation
@@ -157,7 +147,7 @@ contract CrossCoWAggregator is Ownable, ReentrancyGuard, Pausable {
         // Verify signature
         bytes32 messageHash = keccak256(abi.encodePacked(taskIndex, responseHash, block.chainid));
         require(
-            messageHash.toEthSignedMessageHash().recover(signature) == msg.sender,
+            MessageHashUtils.toEthSignedMessageHash(messageHash).recover(signature) == msg.sender,
             "Invalid signature"
         );
         
@@ -188,18 +178,30 @@ contract CrossCoWAggregator is Ownable, ReentrancyGuard, Pausable {
         address[] memory operators = respondingOperators[taskIndex];
         require(operators.length >= MIN_OPERATORS, "Insufficient responses");
         
-        // Count response hashes
-        mapping(bytes32 => uint256) storage responseCounts;
+        // Count response hashes using a simple approach
         bytes32[] memory uniqueHashes = new bytes32[](operators.length);
+        uint256[] memory counts = new uint256[](operators.length);
         uint256 uniqueCount = 0;
         
         for (uint i = 0; i < operators.length; i++) {
             bytes32 responseHash = operatorResponses[taskIndex][operators[i]].responseHash;
-            if (responseCounts[responseHash] == 0) {
+            bool found = false;
+            
+            // Check if we've seen this hash before
+            for (uint j = 0; j < uniqueCount; j++) {
+                if (uniqueHashes[j] == responseHash) {
+                    counts[j]++;
+                    found = true;
+                    break;
+                }
+            }
+            
+            // If not found, add it as a new unique hash
+            if (!found) {
                 uniqueHashes[uniqueCount] = responseHash;
+                counts[uniqueCount] = 1;
                 uniqueCount++;
             }
-            responseCounts[responseHash]++;
         }
         
         // Find the most common response hash
@@ -207,8 +209,8 @@ contract CrossCoWAggregator is Ownable, ReentrancyGuard, Pausable {
         uint256 maxCount = 0;
         
         for (uint i = 0; i < uniqueCount; i++) {
-            if (responseCounts[uniqueHashes[i]] > maxCount) {
-                maxCount = responseCounts[uniqueHashes[i]];
+            if (counts[i] > maxCount) {
+                maxCount = counts[i];
                 winningHash = uniqueHashes[i];
             }
         }

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.27;
 
 import "../../libraries/IntentLib.sol";
 
@@ -51,6 +51,7 @@ interface ICrossCoWServiceManager {
     
     // Admin functions
     function slashOperator(address operator, uint256 amount, string calldata reason) external;
+    function rewardOperator(address operator, uint256 amount) external;
     function updateTaskTimeout(uint256 newTimeout) external;
     function pauseOperations() external;
     function unpauseOperations() external;

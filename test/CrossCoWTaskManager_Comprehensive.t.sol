@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.27;
 
 import "forge-std/Test.sol";
 import "forge-std/console.sol";
@@ -46,11 +46,7 @@ contract CrossCoWTaskManagerComprehensiveTest is Test {
         acrossHubPool = new MockAcrossHubPool();
         
         // Deploy across integration
-        acrossIntegration = new AcrossIntegration(
-            address(acrossHubPool),
-            address(0), // Mock relayer
-            address(0)  // Mock spoke pool
-        );
+        acrossIntegration = new AcrossIntegration(IAcrossHubPool(address(acrossHubPool)));
         
         // Deploy task manager
         taskManager = new CrossCoWTaskManagerSimple(
@@ -119,7 +115,7 @@ contract CrossCoWTaskManagerComprehensiveTest is Test {
     // ============ TASK CREATION TESTS ============
 
     function test_006_CanCreateNewTradeMatchingTask() public {
-        IntentLib.TradeIntent[] memory intents = _createTestIntents();
+        ICrossCoWTaskManager.Intent[] memory intents = _createTestIntents();
         vm.prank(generator);
         CrossCoWTaskManagerSimple.TradeMatchingTask memory task = taskManager.createNewTradeMatchingTask(
             intents,
@@ -131,7 +127,7 @@ contract CrossCoWTaskManagerComprehensiveTest is Test {
     }
 
     function test_007_CannotCreateTaskWithInsufficientIntents() public {
-        IntentLib.TradeIntent[] memory intents = new IntentLib.TradeIntent[](1);
+        ICrossCoWTaskManager.Intent[] memory intents = new ICrossCoWTaskManager.Intent[](1);
         intents[0] = _createTestIntent();
         vm.prank(generator);
         vm.expectRevert("Need at least 2 intents");
@@ -143,7 +139,7 @@ contract CrossCoWTaskManagerComprehensiveTest is Test {
     }
 
     function test_008_CannotCreateTaskWithPastDeadline() public {
-        IntentLib.TradeIntent[] memory intents = _createTestIntents();
+        ICrossCoWTaskManager.Intent[] memory intents = _createTestIntents();
         vm.prank(generator);
         vm.expectRevert("Deadline must be future");
         taskManager.createNewTradeMatchingTask(
@@ -154,7 +150,7 @@ contract CrossCoWTaskManagerComprehensiveTest is Test {
     }
 
     function test_009_CannotCreateTaskWithHighSlippage() public {
-        IntentLib.TradeIntent[] memory intents = _createTestIntents();
+        ICrossCoWTaskManager.Intent[] memory intents = _createTestIntents();
         vm.prank(generator);
         vm.expectRevert("Max slippage 10%");
         taskManager.createNewTradeMatchingTask(
@@ -165,7 +161,7 @@ contract CrossCoWTaskManagerComprehensiveTest is Test {
     }
 
     function test_010_OnlyGeneratorCanCreateTask() public {
-        IntentLib.TradeIntent[] memory intents = _createTestIntents();
+        ICrossCoWTaskManager.Intent[] memory intents = _createTestIntents();
         vm.prank(user1);
         vm.expectRevert("Only generator");
         taskManager.createNewTradeMatchingTask(
@@ -176,10 +172,10 @@ contract CrossCoWTaskManagerComprehensiveTest is Test {
     }
 
     function test_011_TaskCreationEmitsEvent() public {
-        IntentLib.TradeIntent[] memory intents = _createTestIntents();
+        ICrossCoWTaskManager.Intent[] memory intents = _createTestIntents();
         vm.prank(generator);
         vm.expectEmit(true, true, true, true);
-        emit NewTradeMatchingTaskCreated(0, CrossCoWTaskManagerSimple.TradeMatchingTask({
+        emit NewTradeMatchingTaskCreated(0, ICrossCoWTaskManager.TradeMatchingTask({
             intents: intents,
             maxSlippage: MAX_SLIPPAGE,
             deadline: uint32(block.timestamp + DEADLINE),
@@ -194,7 +190,7 @@ contract CrossCoWTaskManagerComprehensiveTest is Test {
     }
 
     function test_012_TaskCreationUpdatesLatestTaskNum() public {
-        IntentLib.TradeIntent[] memory intents = _createTestIntents();
+        ICrossCoWTaskManager.Intent[] memory intents = _createTestIntents();
         uint32 initialTaskNum = taskManager.latestTaskNum();
         vm.prank(generator);
         taskManager.createNewTradeMatchingTask(
@@ -405,7 +401,7 @@ contract CrossCoWTaskManagerComprehensiveTest is Test {
     function test_033_CannotCreateTaskWhenPaused() public {
         vm.prank(owner);
         taskManager.pause();
-        IntentLib.TradeIntent[] memory intents = _createTestIntents();
+        ICrossCoWTaskManager.Intent[] memory intents = _createTestIntents();
         vm.prank(generator);
         vm.expectRevert("Pausable: paused");
         taskManager.createNewTradeMatchingTask(
@@ -431,7 +427,7 @@ contract CrossCoWTaskManagerComprehensiveTest is Test {
         taskManager.pause();
         vm.prank(owner);
         taskManager.unpause();
-        IntentLib.TradeIntent[] memory intents = _createTestIntents();
+        ICrossCoWTaskManager.Intent[] memory intents = _createTestIntents();
         vm.prank(generator);
         taskManager.createNewTradeMatchingTask(
             intents,
@@ -469,7 +465,7 @@ contract CrossCoWTaskManagerComprehensiveTest is Test {
     // ============ EDGE CASE TESTS ============
 
     function test_039_HandleZeroAmountIntents() public {
-        IntentLib.TradeIntent[] memory intents = new IntentLib.TradeIntent[](2);
+        ICrossCoWTaskManager.Intent[] memory intents = new ICrossCoWTaskManager.Intent[](2);
         intents[0] = _createTestIntent();
         intents[0].inputAmount = 0; // Zero amount
         intents[1] = _createTestIntent();
@@ -483,7 +479,7 @@ contract CrossCoWTaskManagerComprehensiveTest is Test {
     }
 
     function test_040_HandleMaxSlippage() public {
-        IntentLib.TradeIntent[] memory intents = _createTestIntents();
+        ICrossCoWTaskManager.Intent[] memory intents = _createTestIntents();
         vm.prank(generator);
         taskManager.createNewTradeMatchingTask(
             intents,
@@ -493,7 +489,7 @@ contract CrossCoWTaskManagerComprehensiveTest is Test {
     }
 
     function test_041_HandleVeryLongDeadline() public {
-        IntentLib.TradeIntent[] memory intents = _createTestIntents();
+        ICrossCoWTaskManager.Intent[] memory intents = _createTestIntents();
         vm.prank(generator);
         taskManager.createNewTradeMatchingTask(
             intents,
@@ -503,7 +499,7 @@ contract CrossCoWTaskManagerComprehensiveTest is Test {
     }
 
     function test_042_HandleManyIntents() public {
-        IntentLib.Intent[] memory intents = new IntentLib.Intent[](10);
+        ICrossCoWTaskManager.Intent[] memory intents = new ICrossCoWTaskManager.Intent[](10);
         for (uint i = 0; i < 10; i++) {
             intents[i] = _createTestIntent();
         }
@@ -518,7 +514,7 @@ contract CrossCoWTaskManagerComprehensiveTest is Test {
     // ============ GAS OPTIMIZATION TESTS ============
 
     function test_043_GasUsageOnTaskCreation() public {
-        IntentLib.TradeIntent[] memory intents = _createTestIntents();
+        ICrossCoWTaskManager.Intent[] memory intents = _createTestIntents();
         uint256 gasBefore = gasleft();
         vm.prank(generator);
         taskManager.createNewTradeMatchingTask(
@@ -601,7 +597,7 @@ contract CrossCoWTaskManagerComprehensiveTest is Test {
     // ============ HELPER FUNCTIONS ============
 
     function _createTestTask() internal {
-        IntentLib.TradeIntent[] memory intents = _createTestIntents();
+        ICrossCoWTaskManager.Intent[] memory intents = _createTestIntents();
         vm.prank(generator);
         taskManager.createNewTradeMatchingTask(
             intents,
@@ -610,10 +606,10 @@ contract CrossCoWTaskManagerComprehensiveTest is Test {
         );
     }
 
-    function _getTask(uint32 taskIndex) internal view returns (CrossCoWTaskManagerSimple.TradeMatchingTask memory) {
+    function _getTask(uint32 taskIndex) internal view returns (ICrossCoWTaskManager.TradeMatchingTask memory) {
         // This would return the actual task
         // For now, we'll create a mock task
-        return CrossCoWTaskManagerSimple.TradeMatchingTask({
+        return ICrossCoWTaskManager.TradeMatchingTask({
             intents: _createTestIntents(),
             maxSlippage: MAX_SLIPPAGE,
             deadline: uint32(block.timestamp + DEADLINE),
@@ -622,44 +618,41 @@ contract CrossCoWTaskManagerComprehensiveTest is Test {
         });
     }
 
-    function _createTestIntents() internal returns (IntentLib.TradeIntent[] memory) {
-        IntentLib.TradeIntent[] memory intents = new IntentLib.TradeIntent[](2);
+    function _createTestIntents() internal returns (ICrossCoWTaskManager.Intent[] memory) {
+        ICrossCoWTaskManager.Intent[] memory intents = new ICrossCoWTaskManager.Intent[](2);
         intents[0] = _createTestIntent();
         intents[1] = _createTestIntent();
         return intents;
     }
 
-    function _createTestIntent() internal returns (IntentLib.TradeIntent memory) {
-        return IntentLib.TradeIntent({
-            intentId: keccak256(abi.encodePacked("test_intent")),
+    function _createTestIntent() internal returns (ICrossCoWTaskManager.Intent memory) {
+        return ICrossCoWTaskManager.Intent({
             user: user1,
-            poolId: PoolId.wrap(keccak256(abi.encodePacked("test_pool"))),
-            tokenIn: Currency.wrap(address(tokenA)),
-            tokenOut: Currency.wrap(address(tokenB)),
-            amountIn: TRADE_AMOUNT,
-            amountOutMinimum: TRADE_AMOUNT * 95 / 100, // 5% slippage
-            deadline: block.timestamp + DEADLINE,
-            originChain: 1,
-            targetChain: 2,
-            isActive: true,
-            createdAt: block.timestamp,
-            salt: keccak256(abi.encodePacked("salt"))
+            inputToken: address(tokenA),
+            outputToken: address(tokenB),
+            inputAmount: TRADE_AMOUNT,
+            minOutputAmount: TRADE_AMOUNT * 95 / 100, // 5% slippage
+            sourceChain: 1,
+            destinationChain: 2,
+            deadline: uint32(block.timestamp + DEADLINE),
+            signature: abi.encodePacked("test_signature")
         });
     }
 
-    function _createTestResponse() internal returns (CrossCoWTaskManagerSimple.TradeMatchingResponse memory) {
-        return CrossCoWTaskManagerSimple.TradeMatchingResponse({
+    function _createTestResponse() internal returns (ICrossCoWTaskManager.TradeMatchingResponse memory) {
+        return ICrossCoWTaskManager.TradeMatchingResponse({
             referenceTaskIndex: 0,
-            matches: new CrossCoWTaskManagerSimple.MatchedTrade[](0),
+            matches: new ICrossCoWTaskManager.MatchedTrade[](0),
             totalGasEstimate: 100000,
             executionPriority: 1
         });
     }
 
-    function _createSimpleSignature() internal returns (CrossCoWTaskManagerSimple.SimpleSignature memory) {
-        return CrossCoWTaskManagerSimple.SimpleSignature({
+    function _createSimpleSignature() internal returns (ICrossCoWTaskManager.SimpleSignature memory) {
+        return ICrossCoWTaskManager.SimpleSignature({
             signer: aggregator,
-            signature: abi.encodePacked("signature")
+            signature: abi.encodePacked("signature"),
+            signatureType: 0 // ECDSA
         });
     }
 

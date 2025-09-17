@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.27;
 
 import {Currency} from "@uniswap/v4-core/types/Currency.sol";
 import {PoolId} from "@uniswap/v4-core/types/PoolId.sol";
@@ -92,7 +92,7 @@ library IntentLib {
             amount, 
             timestamp,
             block.number,      // Adds block-specific entropy
-            block.difficulty,  // Additional entropy
+            block.prevrandao,  // Additional entropy
             salt
         ));
     }
@@ -113,7 +113,7 @@ library IntentLib {
             timestamp,
             nonce,             // User-specific nonce for uniqueness
             block.number,      // Block-specific entropy
-            block.difficulty,  // Additional entropy
+            block.prevrandao,  // Additional entropy
             salt
         ));
     }
@@ -133,7 +133,7 @@ library IntentLib {
                intent.amountOutMinimum > 0 &&
                intent.amountOutMinimum <= intent.amountIn && // Sanity check
                intent.user != address(0) &&
-               intent.tokenIn != intent.tokenOut; // Can't swap same token
+               Currency.unwrap(intent.tokenIn) != Currency.unwrap(intent.tokenOut); // Can't swap same token
     }
 
     function canMatch(

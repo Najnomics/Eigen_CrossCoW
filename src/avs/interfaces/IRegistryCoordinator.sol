@@ -1,51 +1,39 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+/**
+ * @title IRegistryCoordinator
+ * @notice Interface for CrossCoW registry coordinator
+ */
 interface IRegistryCoordinator {
     struct OperatorInfo {
         bytes32 operatorId;
-        uint32 fromTaskNumber;
-        uint32 toTaskNumber;
-        uint256 stakeWeight;
+        OperatorStatus status;
     }
 
-    struct QuorumBitmapUpdate {
-        uint32 updateBlockNumber;
-        uint32 nextUpdateBlockNumber;
-        uint192 quorumBitmap;
+    enum OperatorStatus {
+        NEVER_REGISTERED,
+        REGISTERED,
+        DEREGISTERED
     }
 
+    // Events
+    event OperatorRegistered(bytes32 indexed operatorId, address indexed operator);
+    event OperatorDeregistered(bytes32 indexed operatorId, address indexed operator);
+
+    // Functions
     function registerOperator(
-        bytes calldata quorumNumbers,
-        string calldata socket,
-        bytes calldata params,
-        bytes calldata operatorSignature
+        bytes memory quorumNumbers,
+        string memory socket,
+        bytes memory params,
+        bytes memory operatorSignature
     ) external;
 
-    function deregisterOperator(bytes calldata quorumNumbers) external;
-
-    function updateOperators(address[] calldata operators) external;
-
-    function updateOperatorsForQuorum(
-        address[][] memory operatorsPerQuorum,
-        bytes calldata quorumNumbers
-    ) external;
+    function deregisterOperator(bytes memory quorumNumbers) external;
 
     function getOperator(address operator) external view returns (OperatorInfo memory);
-
-    function getOperatorFromId(bytes32 operatorId) external view returns (address);
-
+    
+    function getOperatorStatus(address operator) external view returns (OperatorStatus);
+    
     function getOperatorId(address operator) external view returns (bytes32);
-
-    function getQuorumBitmapUpdateByIndex(bytes32 operatorId, uint256 index)
-        external
-        view
-        returns (QuorumBitmapUpdate memory);
-
-    function getCurrentQuorumBitmap(bytes32 operatorId) external view returns (uint192);
-
-    function getNumRegistries() external view returns (uint256);
-
-    event OperatorRegistered(address indexed operator, bytes32 indexed operatorId);
-    event OperatorDeregistered(address indexed operator, bytes32 indexed operatorId);
 }

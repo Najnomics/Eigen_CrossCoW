@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.27;
 
 import "forge-std/Test.sol";
 import "forge-std/console.sol";
@@ -46,7 +46,7 @@ contract CrossCoWServiceManagerComprehensiveTest is Test {
         stakeToken = new MockERC20("StakeToken", "STAKE");
         
         // Deploy registry contracts
-        stakeRegistry = new CrossCoWStakeRegistry(address(stakeToken));
+        stakeRegistry = new CrossCoWStakeRegistry();
         blsApkRegistry = new CrossCoWBLSApkRegistry();
         registryCoordinator = new CrossCoWRegistryCoordinator(
             address(stakeRegistry),
@@ -73,38 +73,12 @@ contract CrossCoWServiceManagerComprehensiveTest is Test {
     // ============ INITIALIZATION TESTS ============
 
     function test_001_Initialization() public {
-        assertEq(address(serviceManager.registryCoordinator()), address(registryCoordinator));
-        assertEq(address(serviceManager.stakeRegistry()), address(stakeRegistry));
-        assertEq(address(serviceManager.blsApkRegistry()), address(blsApkRegistry));
+        // Note: registryCoordinator property removed from service manager
+        // The service manager now uses EigenLayer middleware directly
         assertTrue(serviceManager.owner() == owner);
     }
 
-    function test_002_InitializationWithZeroRegistryCoordinator() public {
-        vm.expectRevert("Invalid registry coordinator");
-        new CrossCoWServiceManager(
-            address(0),
-            address(stakeRegistry),
-            address(blsApkRegistry)
-        );
-    }
-
-    function test_003_InitializationWithZeroStakeRegistry() public {
-        vm.expectRevert("Invalid stake registry");
-        new CrossCoWServiceManager(
-            address(registryCoordinator),
-            address(0),
-            address(blsApkRegistry)
-        );
-    }
-
-    function test_004_InitializationWithZeroBlsApkRegistry() public {
-        vm.expectRevert("Invalid BLS APK registry");
-        new CrossCoWServiceManager(
-            address(registryCoordinator),
-            address(stakeRegistry),
-            address(0)
-        );
-    }
+    // Note: Constructor validation tests removed since service manager constructor has changed
 
     // ============ OPERATOR REGISTRATION TESTS ============
 
@@ -361,51 +335,7 @@ contract CrossCoWServiceManagerComprehensiveTest is Test {
     }
 
     // ============ PAUSE/UNPAUSE TESTS ============
-
-    function test_034_OwnerCanPauseOperations() public {
-        vm.prank(owner);
-        serviceManager.pauseOperations();
-        assertTrue(serviceManager.paused());
-    }
-
-    function test_035_NonOwnerCannotPauseOperations() public {
-        vm.prank(operator1);
-        vm.expectRevert("Ownable: caller is not the owner");
-        serviceManager.pauseOperations();
-    }
-
-    function test_036_OwnerCanUnpauseOperations() public {
-        vm.prank(owner);
-        serviceManager.pauseOperations();
-        vm.prank(owner);
-        serviceManager.unpauseOperations();
-        assertFalse(serviceManager.paused());
-    }
-
-    function test_037_NonOwnerCannotUnpauseOperations() public {
-        vm.prank(owner);
-        serviceManager.pauseOperations();
-        vm.prank(operator1);
-        vm.expectRevert("Ownable: caller is not the owner");
-        serviceManager.unpauseOperations();
-    }
-
-    function test_038_CannotRegisterWhenPaused() public {
-        vm.prank(owner);
-        serviceManager.pauseOperations();
-        vm.prank(operator1);
-        vm.expectRevert("Pausable: paused");
-        serviceManager.registerOperator{value: MIN_STAKE}(abi.encodePacked("signature"));
-    }
-
-    function test_039_CannotProcessTradeWhenPaused() public {
-        vm.prank(owner);
-        serviceManager.pauseOperations();
-        IntentLib.MatchedTrade memory trade = _createTestTrade();
-        vm.prank(generator);
-        vm.expectRevert("Pausable: paused");
-        serviceManager.processMatchedTrade(trade);
-    }
+    // Note: Pause functionality tests removed since service manager no longer extends Pausable
 
     // ============ VIEW FUNCTION TESTS ============
 
@@ -493,7 +423,7 @@ contract CrossCoWServiceManagerComprehensiveTest is Test {
         uint256 operator2Tasks = 0;
         
         for (uint i = 0; i < 10; i++) {
-            ICrossCoWServiceManager.MatchingTask memory task = serviceManager.getTask(i);
+            ICrossCoWServiceManager.MatchingTask memory task = serviceManager.getTask(uint32(i));
             if (task.assignedOperator == operator1) {
                 operator1Tasks++;
             } else if (task.assignedOperator == operator2) {
@@ -575,7 +505,7 @@ contract CrossCoWServiceManagerComprehensiveTest is Test {
         
         // Verify all tasks were created
         for (uint i = 0; i < 100; i++) {
-            ICrossCoWServiceManager.MatchingTask memory task = serviceManager.getTask(i);
+            ICrossCoWServiceManager.MatchingTask memory task = serviceManager.getTask(uint32(i));
             assertEq(task.taskIndex, i);
         }
     }

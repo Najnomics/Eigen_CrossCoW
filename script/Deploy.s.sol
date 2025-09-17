@@ -50,7 +50,7 @@ contract DeployScript is Script {
         acrossRelayer = vm.envOr("ACROSS_RELAYER", address(0x4567890123456789012345678901234567890123));
         acrossSpokePool = vm.envOr("ACROSS_SPOKE_POOL", address(0x5678901234567890123456789012345678901234));
         
-        networkName = vm.envOr("NETWORK", "localhost");
+        networkName = vm.envOr("NETWORK", string("localhost"));
         isTestnet = !vm.envOr("MAINNET", false);
         
         console.log("Deploying EigenCrossCoW AVS on", networkName);
@@ -83,7 +83,7 @@ contract DeployScript is Script {
         console.log("Deploying registry contracts...");
         
         // Deploy stake registry (ETH staking)
-        stakeRegistry = new CrossCoWStakeRegistry(address(0));
+        stakeRegistry = new CrossCoWStakeRegistry();
         console.log("StakeRegistry deployed at:", address(stakeRegistry));
         
         // Deploy BLS APK registry
@@ -112,13 +112,7 @@ contract DeployScript is Script {
     function _deployAggregator() internal {
         console.log("Deploying aggregator...");
         
-        aggregator = new CrossCoWAggregator(
-            address(serviceManager),
-            address(registryCoordinator),
-            address(stakeRegistry),
-            address(blsApkRegistry),
-            address(0) // Will be set after task manager deployment
-        );
+        aggregator = new CrossCoWAggregator();
         console.log("Aggregator deployed at:", address(aggregator));
     }
     
@@ -137,11 +131,7 @@ contract DeployScript is Script {
     function _deployAcrossIntegration() internal {
         console.log("Deploying across integration...");
         
-        acrossIntegration = new AcrossIntegration(
-            acrossHubPool,
-            acrossRelayer,
-            acrossSpokePool
-        );
+        acrossIntegration = new AcrossIntegration(IAcrossHubPool(acrossHubPool));
         console.log("AcrossIntegration deployed at:", address(acrossIntegration));
     }
     
@@ -153,9 +143,8 @@ contract DeployScript is Script {
         
         hook = new EigenCrossCoWHook(
             IPoolManager(mockPoolManager),
-            address(taskManager),
-            address(serviceManager),
-            address(acrossIntegration)
+            ICrossCoWServiceManager(serviceManager),
+            IAcrossHubPool(acrossHubPool)
         );
         console.log("EigenCrossCoWHook deployed at:", address(hook));
     }
@@ -165,12 +154,6 @@ contract DeployScript is Script {
         
         // Set aggregator in task manager
         taskManager.setAggregator(address(aggregator));
-        
-        // Set task manager in aggregator
-        aggregator.setTaskManager(address(taskManager));
-        
-        // Set across integration in task manager
-        taskManager.setAcrossIntegration(payable(address(acrossIntegration)));
         
         // Transfer ownership if needed
         if (owner != msg.sender) {
@@ -200,9 +183,7 @@ contract DeployScript is Script {
         require(address(acrossIntegration) != address(0), "AcrossIntegration not deployed");
         
         // Check that contracts are properly connected
-        require(address(hook.taskManager()) == address(taskManager), "Hook not connected to TaskManager");
         require(address(hook.serviceManager()) == address(serviceManager), "Hook not connected to ServiceManager");
-        require(address(hook.acrossIntegration()) == address(acrossIntegration), "Hook not connected to AcrossIntegration");
         
         console.log("Deployment verification successful");
     }
