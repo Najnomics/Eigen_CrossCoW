@@ -102,6 +102,30 @@ contract EigenCrossCoWHookTest is Test {
     uint256 public constant STAKE_AMOUNT = 10 ether;
     uint256 public constant TRADE_AMOUNT = 1000 * 10**18;
     
+    function _createValidSignature(address operator, string memory suffix) internal pure returns (bytes memory) {
+        // Create a 65-byte signature for operator registration
+        bytes memory signature = new bytes(65);
+        
+        // Fill with deterministic data based on operator and suffix
+        bytes32 operatorHash = keccak256(abi.encodePacked(operator, suffix));
+        
+        // Fill first 32 bytes (r)
+        for (uint i = 0; i < 32; i++) {
+            signature[i] = operatorHash[i];
+        }
+        
+        // Fill next 32 bytes (s)
+        bytes32 sHash = keccak256(abi.encodePacked(operator, suffix, "s"));
+        for (uint i = 32; i < 64; i++) {
+            signature[i] = sHash[i - 32];
+        }
+        
+        // Set recovery ID (v)
+        signature[64] = 0x1e;
+        
+        return signature;
+    }
+    
     function setUp() public {
         // Set up the owner address
         vm.startPrank(owner);
@@ -202,7 +226,7 @@ contract EigenCrossCoWHookTest is Test {
         stakeRegistry.registerOperator(operator1, bytes32(uint256(uint160(operator1))), uint96(STAKE_AMOUNT));
         
         // Register with service manager
-        serviceManager.registerOperator{value: STAKE_AMOUNT}(abi.encodePacked("signature1"));
+        serviceManager.registerOperator{value: STAKE_AMOUNT}(_createValidSignature(operator1, "signature1"));
         
         vm.stopPrank();
         
@@ -291,7 +315,7 @@ contract EigenCrossCoWHookTest is Test {
             acrossDepositId: keccak256(abi.encodePacked("deposit1")),
             gasUsed: 100000,
             executionTime: block.timestamp,
-            signature: abi.encodePacked("signature")
+            signature: _createValidSignature(operator1, "response_signature")
         });
         
         vm.prank(operator1);
@@ -352,7 +376,7 @@ contract EigenCrossCoWHookTest is Test {
         
         // Should fail when paused
         vm.expectRevert();
-        serviceManager.registerOperator{value: STAKE_AMOUNT}(abi.encodePacked("signature"));
+        serviceManager.registerOperator{value: STAKE_AMOUNT}(_createValidSignature(operator2, "signature2"));
         
         // Unpause
         vm.prank(owner);
@@ -441,7 +465,7 @@ contract EigenCrossCoWHookTest is Test {
             acrossDepositId: keccak256(abi.encodePacked("deposit1")),
             gasUsed: 100000,
             executionTime: block.timestamp,
-            signature: abi.encodePacked("signature")
+            signature: _createValidSignature(operator1, "response_signature")
         });
         
         vm.prank(operator1);
@@ -478,7 +502,7 @@ contract EigenCrossCoWHookTest is Test {
         stakeRegistry.registerOperator(operator, bytes32(uint256(uint160(operator))), uint96(STAKE_AMOUNT));
         
         // Register with service manager
-        serviceManager.registerOperator{value: STAKE_AMOUNT}(abi.encodePacked("signature"));
+        serviceManager.registerOperator{value: STAKE_AMOUNT}(_createValidSignature(operator2, "signature2"));
         
         vm.stopPrank();
     }

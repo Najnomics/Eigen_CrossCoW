@@ -56,6 +56,30 @@ contract RegistryComprehensiveTest is Test {
         });
     }
     
+    function _createValidSignature(address operator) internal pure returns (bytes memory) {
+        // Create a 65-byte signature for operator registration
+        bytes memory signature = new bytes(65);
+        
+        // Fill with deterministic data based on operator
+        bytes32 operatorHash = keccak256(abi.encodePacked(operator, "registry_signature"));
+        
+        // Fill first 32 bytes (r)
+        for (uint i = 0; i < 32; i++) {
+            signature[i] = operatorHash[i];
+        }
+        
+        // Fill next 32 bytes (s)
+        bytes32 sHash = keccak256(abi.encodePacked(operator, "registry_signature_s"));
+        for (uint i = 32; i < 64; i++) {
+            signature[i] = sHash[i - 32];
+        }
+        
+        // Set recovery ID (v)
+        signature[64] = 0x1d;
+        
+        return signature;
+    }
+    
     function setUp() public {
         // Deploy stake token
         stakeToken = new MockERC20("StakeToken", "STAKE");
@@ -349,7 +373,7 @@ contract RegistryComprehensiveTest is Test {
         bytes memory quorumNumbers = abi.encodePacked(uint8(0));
         string memory socket = "tcp://localhost:8080";
         bytes memory params = abi.encode(operator1);
-        bytes memory operatorSignature = abi.encodePacked("signature");
+        bytes memory operatorSignature = _createValidSignature(msg.sender);
         
         registryCoordinator.registerOperator(
             quorumNumbers,
@@ -365,7 +389,7 @@ contract RegistryComprehensiveTest is Test {
         bytes memory quorumNumbers = abi.encodePacked(); // Empty quorum
         string memory socket = "tcp://localhost:8080";
         bytes memory params = abi.encode(operator1);
-        bytes memory operatorSignature = abi.encodePacked("signature");
+        bytes memory operatorSignature = _createValidSignature(msg.sender);
         
         vm.expectRevert("Invalid quorum numbers");
         registryCoordinator.registerOperator(
@@ -380,7 +404,7 @@ contract RegistryComprehensiveTest is Test {
         bytes memory quorumNumbers = abi.encodePacked(uint8(0));
         string memory socket = "tcp://localhost:8080";
         bytes memory params = abi.encode(operator1);
-        bytes memory operatorSignature = abi.encodePacked("signature");
+        bytes memory operatorSignature = _createValidSignature(msg.sender);
         
         registryCoordinator.registerOperator(
             quorumNumbers,
@@ -402,7 +426,7 @@ contract RegistryComprehensiveTest is Test {
         bytes memory quorumNumbers = abi.encodePacked(uint8(0));
         string memory socket = "tcp://localhost:8080";
         bytes memory params = abi.encode(operator1);
-        bytes memory operatorSignature = abi.encodePacked("signature");
+        bytes memory operatorSignature = _createValidSignature(msg.sender);
         
         vm.expectEmit(true, true, true, true);
         emit OperatorRegistered(operator1, 10 ether); // Expected stake amount
@@ -418,7 +442,7 @@ contract RegistryComprehensiveTest is Test {
         bytes memory quorumNumbers = abi.encodePacked(uint8(0));
         string memory socket = "tcp://localhost:8080";
         bytes memory params = abi.encode(operator1);
-        bytes memory operatorSignature = abi.encodePacked("signature");
+        bytes memory operatorSignature = _createValidSignature(msg.sender);
         
         registryCoordinator.registerOperator(
             quorumNumbers,
@@ -441,7 +465,7 @@ contract RegistryComprehensiveTest is Test {
         bytes memory quorumNumbers = abi.encodePacked(uint8(0));
         string memory socket = "tcp://localhost:8080";
         bytes memory params = abi.encode(operator1);
-        bytes memory operatorSignature = abi.encodePacked("signature");
+        bytes memory operatorSignature = _createValidSignature(msg.sender);
         
         registryCoordinator.registerOperator(
             quorumNumbers,
@@ -460,7 +484,7 @@ contract RegistryComprehensiveTest is Test {
         bytes memory quorumNumbers = abi.encodePacked(uint8(0));
         string memory socket = "tcp://localhost:8080";
         bytes memory params = abi.encode(operator1);
-        bytes memory operatorSignature = abi.encodePacked("signature");
+        bytes memory operatorSignature = _createValidSignature(msg.sender);
         
         registryCoordinator.registerOperator(
             quorumNumbers,
@@ -480,7 +504,7 @@ contract RegistryComprehensiveTest is Test {
         bytes memory quorumNumbers = abi.encodePacked(uint8(0));
         string memory socket = "tcp://localhost:8080";
         bytes memory params = abi.encode(operator1);
-        bytes memory operatorSignature = abi.encodePacked("signature");
+        bytes memory operatorSignature = _createValidSignature(msg.sender);
         
         registryCoordinator.registerOperator(
             quorumNumbers,
@@ -512,7 +536,7 @@ contract RegistryComprehensiveTest is Test {
         bytes memory quorumNumbers = abi.encodePacked(uint8(0));
         string memory socket = "tcp://localhost:8080";
         bytes memory params = abi.encode(operator1);
-        bytes memory operatorSignature = abi.encodePacked("signature");
+        bytes memory operatorSignature = _createValidSignature(msg.sender);
         
         registryCoordinator.registerOperator(
             quorumNumbers,
@@ -539,7 +563,7 @@ contract RegistryComprehensiveTest is Test {
         bytes memory quorumNumbers = abi.encodePacked(uint8(0));
         string memory socket = "tcp://localhost:8080";
         bytes memory params = abi.encode(operator1);
-        bytes memory operatorSignature = abi.encodePacked("signature");
+        bytes memory operatorSignature = _createValidSignature(msg.sender);
         
         registryCoordinator.registerOperator(
             quorumNumbers,
@@ -630,7 +654,7 @@ contract RegistryComprehensiveTest is Test {
         bytes memory quorumNumbers = abi.encodePacked(uint8(0));
         string memory socket = "tcp://localhost:8080";
         bytes memory params = abi.encode(operator1);
-        bytes memory operatorSignature = abi.encodePacked("signature");
+        bytes memory operatorSignature = _createValidSignature(msg.sender);
         
         uint256 gasBefore = gasleft();
         registryCoordinator.registerOperator(
@@ -680,7 +704,7 @@ contract RegistryComprehensiveTest is Test {
             bytes memory quorumNumbers = abi.encodePacked(uint8(0));
             string memory socket = "tcp://localhost:8080";
             bytes memory params = abi.encode(operator);
-            bytes memory operatorSignature = abi.encodePacked("signature");
+            bytes memory operatorSignature = _createValidSignature(msg.sender);
             
             registryCoordinator.registerOperator(
                 quorumNumbers,
