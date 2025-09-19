@@ -34,7 +34,9 @@ contract TestRegistryCoordinator {
         bytes calldata params,
         bytes calldata operatorSignature
     ) external {
-        require(!operators[msg.sender], "Already registered");
+        // Decode the actual operator address from params (msg.sender is the service manager)
+        address operator = abi.decode(params, (address));
+        require(!operators[operator], "Already registered");
         require(registeredOperators.length < 1000, "Max operators reached");
         
         // Skip signature validation for tests
@@ -42,22 +44,22 @@ contract TestRegistryCoordinator {
         
         // Generate operator ID
         bytes32 newOperatorId = keccak256(abi.encodePacked(
-            msg.sender,
+            operator,
             block.timestamp,
             registeredOperators.length
         ));
         
         // Register with stake registry
-        stakeRegistry.registerOperator(msg.sender, newOperatorId, uint96(1 ether));
+        stakeRegistry.registerOperator(operator, newOperatorId, uint96(1 ether));
         
         // Skip BLS APK registry registration for tests
         // The service manager doesn't actually need it for basic functionality
         
         // Store operator info
-        operators[msg.sender] = true;
-        registeredOperators.push(msg.sender);
+        operators[operator] = true;
+        registeredOperators.push(operator);
         
-        emit OperatorRegistered(msg.sender);
+        emit OperatorRegistered(operator);
     }
     
     function deregisterOperator(bytes calldata quorumNumbers) external {
@@ -346,6 +348,12 @@ contract CrossCoWServiceManagerComprehensiveTest is Test {
     }
 
     function test_023_CannotSubmitResponseForUnassignedTask() public {
+        // Reset state for clean test
+        registryCoordinator.resetForTesting();
+        vm.startPrank(owner);
+        serviceManager.resetForTesting();
+        vm.stopPrank();
+        
         // Use unique addresses for this test to avoid conflicts
         address testOperator1 = address(0x100);
         address testOperator2 = address(0x101);

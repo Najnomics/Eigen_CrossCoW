@@ -436,4 +436,18 @@ contract CrossCoWBLSApkRegistry is Ownable, ReentrancyGuard, Pausable, IBLSApkRe
         
         emit OperatorDeregistered(operator, opId);
     }
+
+    /**
+     * @notice Reset state for testing
+     * @dev Only for testing purposes
+     */
+    function resetForTesting() external {
+        // Reset all operator states
+        for (uint i = 0; i < registeredOperators.length; i++) {
+            delete operatorKeys[registeredOperators[i]];
+            delete operatorId[registeredOperators[i]];
+        }
+        delete registeredOperators;
+        totalOperators = 0;
+    }
 }

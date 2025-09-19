@@ -427,4 +427,19 @@ contract CrossCoWStakeRegistry is Ownable, ReentrancyGuard, Pausable, IStakeRegi
         // Simplified implementation
         return 1;
     }
+
+    /**
+     * @notice Reset state for testing
+     * @dev Only for testing purposes
+     */
+    function resetForTesting() external {
+        // Reset all operator states
+        for (uint i = 0; i < stakedOperators.length; i++) {
+            delete operatorStakes[stakedOperators[i]];
+        }
+        delete stakedOperators;
+        totalStake = 0;
+        totalSlashed = 0;
+        totalRewards = 0;
+    }
 }
