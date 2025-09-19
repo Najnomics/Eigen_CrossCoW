@@ -69,8 +69,17 @@ contract EigenCrossCoWHook is BaseHook, ReentrancyGuard, Ownable, Pausable {
                                 STORAGE
     //////////////////////////////////////////////////////////////*/
     
-    ICrossCoWServiceManager public immutable serviceManager;
-    IAcrossHubPool public immutable acrossHubPool;
+    ICrossCoWServiceManager public serviceManager;
+    IAcrossHubPool public acrossHubPool;
+    
+    // Configurable task manager for AVS operations
+    address public taskManager;
+    
+    // Additional configurable parameters
+    address public acrossIntegration;
+    uint256 public fee;
+    uint256 public maxSlippage;
+    uint256 public minDeadline;
     
     // Pool-specific intent pools
     mapping(PoolId => MatchingLib.MatchingPool) private matchingPools;
@@ -174,6 +183,8 @@ contract EigenCrossCoWHook is BaseHook, ReentrancyGuard, Ownable, Pausable {
     ) BaseHook(_poolManager) Ownable(msg.sender) {
         serviceManager = _serviceManager;
         acrossHubPool = _acrossHubPool;
+        taskManager = address(_serviceManager); // Initialize with service manager address
+        acrossIntegration = address(_acrossHubPool); // Initialize with across hub pool address
         
         // Initialize supported chains (can be configured later)
         supportedChains[1] = true;     // Ethereum
@@ -515,6 +526,49 @@ contract EigenCrossCoWHook is BaseHook, ReentrancyGuard, Ownable, Pausable {
     
     function setMatchingReward(uint256 newReward) external onlyOwner {
         matchingReward = newReward;
+    }
+    
+    function setTaskManager(address newTaskManager) external onlyOwner {
+        require(newTaskManager != address(0), "Invalid task manager address");
+        taskManager = newTaskManager;
+    }
+    
+    function setServiceManager(address newServiceManager) external onlyOwner {
+        require(newServiceManager != address(0), "Invalid service manager");
+        serviceManager = ICrossCoWServiceManager(newServiceManager);
+    }
+    
+    function setAcrossIntegration(address newAcrossIntegration) external onlyOwner {
+        require(newAcrossIntegration != address(0), "Invalid across integration address");
+        acrossIntegration = newAcrossIntegration;
+    }
+    
+    function setFee(uint256 newFee) external onlyOwner {
+        fee = newFee;
+    }
+    
+    function setMaxSlippage(uint256 newMaxSlippage) external onlyOwner {
+        maxSlippage = newMaxSlippage;
+    }
+    
+    function setMinDeadline(uint256 newMinDeadline) external onlyOwner {
+        minDeadline = newMinDeadline;
+    }
+    
+    function emergencyWithdraw() external onlyOwner {
+        // Emergency function to withdraw all ETH from contract
+        uint256 balance = address(this).balance;
+        if (balance > 0) {
+            payable(owner()).transfer(balance);
+        }
+    }
+    
+    function pause() external onlyOwner {
+        _pause();
+    }
+    
+    function unpause() external onlyOwner {
+        _unpause();
     }
     
     function emergencyPauseToggle() external onlyOwner {

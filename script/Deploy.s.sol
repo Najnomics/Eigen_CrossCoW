@@ -83,7 +83,7 @@ contract DeployScript is Script {
         console.log("Deploying registry contracts...");
         
         // Deploy stake registry (ETH staking)
-        stakeRegistry = new CrossCoWStakeRegistry();
+        stakeRegistry = new CrossCoWStakeRegistry(address(0));
         console.log("StakeRegistry deployed at:", address(stakeRegistry));
         
         // Deploy BLS APK registry

@@ -606,7 +606,7 @@ contract CrossCoWTaskManagerComprehensiveTest is Test {
         );
     }
 
-    function _getTask(uint32 taskIndex) internal view returns (ICrossCoWTaskManager.TradeMatchingTask memory) {
+    function _getTask(uint32 taskIndex) internal returns (ICrossCoWTaskManager.TradeMatchingTask memory) {
         // This would return the actual task
         // For now, we'll create a mock task
         return ICrossCoWTaskManager.TradeMatchingTask({

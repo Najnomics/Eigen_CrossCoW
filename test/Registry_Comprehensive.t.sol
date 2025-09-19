@@ -34,12 +34,34 @@ contract RegistryComprehensiveTest is Test {
     uint256 public constant MIN_STAKE = 1 ether;
     uint256 public constant STAKE_AMOUNT = 10 ether;
     
+    /* HELPER FUNCTIONS */
+    function _createValidBLSKey(address operator, string memory suffix) internal pure returns (CrossCoWBLSApkRegistry.BLSPublicKey memory) {
+        bytes32 operatorHash = keccak256(abi.encodePacked(operator, suffix));
+        
+        // Create 48-byte G1 key
+        bytes memory g1Key = new bytes(48);
+        for (uint i = 0; i < 48; i++) {
+            g1Key[i] = bytes1(uint8(uint256(operatorHash) >> ((i % 32) * 8)));
+        }
+        
+        // Create 96-byte G2 key
+        bytes memory g2Key = new bytes(96);
+        for (uint i = 0; i < 96; i++) {
+            g2Key[i] = bytes1(uint8(uint256(operatorHash) >> ((i % 32) * 8)));
+        }
+        
+        return CrossCoWBLSApkRegistry.BLSPublicKey({
+            g1Pubkey: g1Key,
+            g2Pubkey: g2Key
+        });
+    }
+    
     function setUp() public {
         // Deploy stake token
         stakeToken = new MockERC20("StakeToken", "STAKE");
         
         // Deploy registry contracts
-        stakeRegistry = new CrossCoWStakeRegistry(address(stakeToken));
+        stakeRegistry = new CrossCoWStakeRegistry(address(0));
         blsApkRegistry = new CrossCoWBLSApkRegistry();
         registryCoordinator = new CrossCoWRegistryCoordinator(
             address(stakeRegistry),
@@ -189,10 +211,7 @@ contract RegistryComprehensiveTest is Test {
 
     function test_018_CanRegisterOperator() public {
         bytes32 operatorId = keccak256(abi.encodePacked(operator1, "key"));
-        CrossCoWBLSApkRegistry.BLSPublicKey memory key = CrossCoWBLSApkRegistry.BLSPublicKey({
-            g1Pubkey: abi.encodePacked(operator1, "g1"),
-            g2Pubkey: abi.encodePacked(operator1, "g2")
-        });
+        CrossCoWBLSApkRegistry.BLSPublicKey memory key = _createValidBLSKey(operator1, "g1");
         blsApkRegistry.registerOperator(operator1, operatorId, key);
         assertTrue(blsApkRegistry.isOperatorRegistered(operator1));
     }
@@ -200,8 +219,8 @@ contract RegistryComprehensiveTest is Test {
     function test_019_CannotRegisterWithInvalidG1Key() public {
         bytes32 operatorId = keccak256(abi.encodePacked(operator1, "key"));
         CrossCoWBLSApkRegistry.BLSPublicKey memory key = CrossCoWBLSApkRegistry.BLSPublicKey({
-            g1Pubkey: abi.encodePacked(operator1), // Wrong length
-            g2Pubkey: abi.encodePacked(operator1, "g2")
+            g1Pubkey: abi.encodePacked(operator1), // Wrong length (20 bytes instead of 48)
+            g2Pubkey: new bytes(96) // Valid 96-byte G2 key
         });
         vm.expectRevert("Invalid G1 public key length");
         blsApkRegistry.registerOperator(operator1, operatorId, key);
@@ -210,8 +229,8 @@ contract RegistryComprehensiveTest is Test {
     function test_020_CannotRegisterWithInvalidG2Key() public {
         bytes32 operatorId = keccak256(abi.encodePacked(operator1, "key"));
         CrossCoWBLSApkRegistry.BLSPublicKey memory key = CrossCoWBLSApkRegistry.BLSPublicKey({
-            g1Pubkey: abi.encodePacked(operator1, "g1"),
-            g2Pubkey: abi.encodePacked(operator1) // Wrong length
+            g1Pubkey: new bytes(48), // Valid 48-byte G1 key
+            g2Pubkey: abi.encodePacked(operator1) // Wrong length (20 bytes instead of 96)
         });
         vm.expectRevert("Invalid G2 public key length");
         blsApkRegistry.registerOperator(operator1, operatorId, key);
@@ -219,10 +238,7 @@ contract RegistryComprehensiveTest is Test {
 
     function test_021_CannotRegisterTwice() public {
         bytes32 operatorId = keccak256(abi.encodePacked(operator1, "key"));
-        CrossCoWBLSApkRegistry.BLSPublicKey memory key = CrossCoWBLSApkRegistry.BLSPublicKey({
-            g1Pubkey: abi.encodePacked(operator1, "g1"),
-            g2Pubkey: abi.encodePacked(operator1, "g2")
-        });
+        CrossCoWBLSApkRegistry.BLSPublicKey memory key = _createValidBLSKey(operator1, "g1");
         blsApkRegistry.registerOperator(operator1, operatorId, key);
         vm.expectRevert("Already registered");
         blsApkRegistry.registerOperator(operator1, operatorId, key);
@@ -246,10 +262,7 @@ contract RegistryComprehensiveTest is Test {
 
     function test_023_RegistrationEmitsEvent() public {
         bytes32 operatorId = keccak256(abi.encodePacked(operator1, "key"));
-        CrossCoWBLSApkRegistry.BLSPublicKey memory key = CrossCoWBLSApkRegistry.BLSPublicKey({
-            g1Pubkey: abi.encodePacked(operator1, "g1"),
-            g2Pubkey: abi.encodePacked(operator1, "g2")
-        });
+        CrossCoWBLSApkRegistry.BLSPublicKey memory key = _createValidBLSKey(operator1, "g1");
         vm.expectEmit(true, true, true, true);
         emit OperatorRegistered(operator1, operatorId, key);
         blsApkRegistry.registerOperator(operator1, operatorId, key);
@@ -257,10 +270,7 @@ contract RegistryComprehensiveTest is Test {
 
     function test_024_CanDeregisterOperator() public {
         bytes32 operatorId = keccak256(abi.encodePacked(operator1, "key"));
-        CrossCoWBLSApkRegistry.BLSPublicKey memory key = CrossCoWBLSApkRegistry.BLSPublicKey({
-            g1Pubkey: abi.encodePacked(operator1, "g1"),
-            g2Pubkey: abi.encodePacked(operator1, "g2")
-        });
+        CrossCoWBLSApkRegistry.BLSPublicKey memory key = _createValidBLSKey(operator1, "g1");
         blsApkRegistry.registerOperator(operator1, operatorId, key);
         blsApkRegistry.deregisterOperator(operator1);
         assertFalse(blsApkRegistry.isOperatorRegistered(operator1));
@@ -273,10 +283,7 @@ contract RegistryComprehensiveTest is Test {
 
     function test_026_DeregistrationEmitsEvent() public {
         bytes32 operatorId = keccak256(abi.encodePacked(operator1, "key"));
-        CrossCoWBLSApkRegistry.BLSPublicKey memory key = CrossCoWBLSApkRegistry.BLSPublicKey({
-            g1Pubkey: abi.encodePacked(operator1, "g1"),
-            g2Pubkey: abi.encodePacked(operator1, "g2")
-        });
+        CrossCoWBLSApkRegistry.BLSPublicKey memory key = _createValidBLSKey(operator1, "g1");
         blsApkRegistry.registerOperator(operator1, operatorId, key);
         vm.expectEmit(true, true, true, true);
         emit OperatorDeregistered(operator1, operatorId);
@@ -285,16 +292,10 @@ contract RegistryComprehensiveTest is Test {
 
     function test_027_CanUpdatePublicKey() public {
         bytes32 operatorId = keccak256(abi.encodePacked(operator1, "key"));
-        CrossCoWBLSApkRegistry.BLSPublicKey memory key = CrossCoWBLSApkRegistry.BLSPublicKey({
-            g1Pubkey: abi.encodePacked(operator1, "g1"),
-            g2Pubkey: abi.encodePacked(operator1, "g2")
-        });
+        CrossCoWBLSApkRegistry.BLSPublicKey memory key = _createValidBLSKey(operator1, "g1");
         blsApkRegistry.registerOperator(operator1, operatorId, key);
         
-        CrossCoWBLSApkRegistry.BLSPublicKey memory newKey = CrossCoWBLSApkRegistry.BLSPublicKey({
-            g1Pubkey: abi.encodePacked(operator1, "new_g1"),
-            g2Pubkey: abi.encodePacked(operator1, "new_g2")
-        });
+        CrossCoWBLSApkRegistry.BLSPublicKey memory newKey = _createValidBLSKey(operator1, "new_g1");
         vm.warp(block.timestamp + 1 days + 1); // Past cooldown
         blsApkRegistry.updatePublicKey(operator1, newKey);
         
@@ -304,26 +305,17 @@ contract RegistryComprehensiveTest is Test {
 
     function test_028_CannotUpdateKeyBeforeCooldown() public {
         bytes32 operatorId = keccak256(abi.encodePacked(operator1, "key"));
-        CrossCoWBLSApkRegistry.BLSPublicKey memory key = CrossCoWBLSApkRegistry.BLSPublicKey({
-            g1Pubkey: abi.encodePacked(operator1, "g1"),
-            g2Pubkey: abi.encodePacked(operator1, "g2")
-        });
+        CrossCoWBLSApkRegistry.BLSPublicKey memory key = _createValidBLSKey(operator1, "g1");
         blsApkRegistry.registerOperator(operator1, operatorId, key);
         
-        CrossCoWBLSApkRegistry.BLSPublicKey memory newKey = CrossCoWBLSApkRegistry.BLSPublicKey({
-            g1Pubkey: abi.encodePacked(operator1, "new_g1"),
-            g2Pubkey: abi.encodePacked(operator1, "new_g2")
-        });
+        CrossCoWBLSApkRegistry.BLSPublicKey memory newKey = _createValidBLSKey(operator1, "new_g1");
         vm.expectRevert("Key update cooldown not met");
         blsApkRegistry.updatePublicKey(operator1, newKey);
     }
 
     function test_029_CanUpdateOperatorId() public {
         bytes32 operatorId = keccak256(abi.encodePacked(operator1, "key"));
-        CrossCoWBLSApkRegistry.BLSPublicKey memory key = CrossCoWBLSApkRegistry.BLSPublicKey({
-            g1Pubkey: abi.encodePacked(operator1, "g1"),
-            g2Pubkey: abi.encodePacked(operator1, "g2")
-        });
+        CrossCoWBLSApkRegistry.BLSPublicKey memory key = _createValidBLSKey(operator1, "g1");
         blsApkRegistry.registerOperator(operator1, operatorId, key);
         
         bytes32 newId = keccak256(abi.encodePacked(operator1, "new_key"));
@@ -335,14 +327,8 @@ contract RegistryComprehensiveTest is Test {
         bytes32 operatorId1 = keccak256(abi.encodePacked(operator1, "key"));
         bytes32 operatorId2 = keccak256(abi.encodePacked(operator2, "key"));
         
-        CrossCoWBLSApkRegistry.BLSPublicKey memory key1 = CrossCoWBLSApkRegistry.BLSPublicKey({
-            g1Pubkey: abi.encodePacked(operator1, "g1"),
-            g2Pubkey: abi.encodePacked(operator1, "g2")
-        });
-        CrossCoWBLSApkRegistry.BLSPublicKey memory key2 = CrossCoWBLSApkRegistry.BLSPublicKey({
-            g1Pubkey: abi.encodePacked(operator2, "g1"),
-            g2Pubkey: abi.encodePacked(operator2, "g2")
-        });
+        CrossCoWBLSApkRegistry.BLSPublicKey memory key1 = _createValidBLSKey(operator1, "g1");
+        CrossCoWBLSApkRegistry.BLSPublicKey memory key2 = _createValidBLSKey(operator2, "g1");
         
         blsApkRegistry.registerOperator(operator1, operatorId1, key1);
         blsApkRegistry.registerOperator(operator2, operatorId2, key2);
@@ -419,7 +405,7 @@ contract RegistryComprehensiveTest is Test {
         bytes memory operatorSignature = abi.encodePacked("signature");
         
         vm.expectEmit(true, true, true, true);
-        emit OperatorRegistered(operator1, bytes32(0)); // ID will be generated
+        emit OperatorRegistered(operator1, 10 ether); // Expected stake amount
         registryCoordinator.registerOperator(
             quorumNumbers,
             socket,
@@ -519,10 +505,7 @@ contract RegistryComprehensiveTest is Test {
         
         // Register in BLS APK registry
         bytes32 operatorId = keccak256(abi.encodePacked(operator1, "key"));
-        CrossCoWBLSApkRegistry.BLSPublicKey memory key = CrossCoWBLSApkRegistry.BLSPublicKey({
-            g1Pubkey: abi.encodePacked(operator1, "g1"),
-            g2Pubkey: abi.encodePacked(operator1, "g2")
-        });
+        CrossCoWBLSApkRegistry.BLSPublicKey memory key = _createValidBLSKey(operator1, "g1");
         blsApkRegistry.registerOperator(operator1, operatorId, key);
         
         // Register in registry coordinator
@@ -550,10 +533,7 @@ contract RegistryComprehensiveTest is Test {
         stakeRegistry.registerOperator(operator1, STAKE_AMOUNT);
         
         bytes32 operatorId = keccak256(abi.encodePacked(operator1, "key"));
-        CrossCoWBLSApkRegistry.BLSPublicKey memory key = CrossCoWBLSApkRegistry.BLSPublicKey({
-            g1Pubkey: abi.encodePacked(operator1, "g1"),
-            g2Pubkey: abi.encodePacked(operator1, "g2")
-        });
+        CrossCoWBLSApkRegistry.BLSPublicKey memory key = _createValidBLSKey(operator1, "g1");
         blsApkRegistry.registerOperator(operator1, operatorId, key);
         
         bytes memory quorumNumbers = abi.encodePacked(uint8(0));
@@ -639,10 +619,7 @@ contract RegistryComprehensiveTest is Test {
 
     function test_049_GasUsageOnBlsRegistration() public {
         bytes32 operatorId = keccak256(abi.encodePacked(operator1, "key"));
-        CrossCoWBLSApkRegistry.BLSPublicKey memory key = CrossCoWBLSApkRegistry.BLSPublicKey({
-            g1Pubkey: abi.encodePacked(operator1, "g1"),
-            g2Pubkey: abi.encodePacked(operator1, "g2")
-        });
+        CrossCoWBLSApkRegistry.BLSPublicKey memory key = _createValidBLSKey(operator1, "g1");
         uint256 gasBefore = gasleft();
         blsApkRegistry.registerOperator(operator1, operatorId, key);
         uint256 gasUsed = gasBefore - gasleft();

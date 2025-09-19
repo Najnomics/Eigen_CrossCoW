@@ -25,6 +25,32 @@ contract CrossCoWAggregator is Ownable, ReentrancyGuard, Pausable {
 
     constructor() Ownable(msg.sender) {}
 
+    /* ADMIN FUNCTIONS */
+    function setServiceManager(address _serviceManager) external onlyOwner {
+        require(_serviceManager != address(0), "Invalid service manager");
+        serviceManager = ICrossCoWServiceManager(_serviceManager);
+    }
+
+    function setRegistryCoordinator(address _registryCoordinator) external onlyOwner {
+        require(_registryCoordinator != address(0), "Invalid registry coordinator");
+        registryCoordinator = IRegistryCoordinator(_registryCoordinator);
+    }
+
+    function setStakeRegistry(address _stakeRegistry) external onlyOwner {
+        require(_stakeRegistry != address(0), "Invalid stake registry");
+        stakeRegistry = IStakeRegistry(_stakeRegistry);
+    }
+
+    function setBlsApkRegistry(address _blsApkRegistry) external onlyOwner {
+        require(_blsApkRegistry != address(0), "Invalid BLS APK registry");
+        blsApkRegistry = IBLSApkRegistry(_blsApkRegistry);
+    }
+
+    function setTaskManager(address _taskManager) external onlyOwner {
+        require(_taskManager != address(0), "Invalid task manager");
+        taskManager = ICrossCoWTaskManager(_taskManager);
+    }
+
     /* CONSTANTS */
     uint256 public constant MIN_OPERATORS = 2;
     uint256 public constant MAX_OPERATORS = 100;

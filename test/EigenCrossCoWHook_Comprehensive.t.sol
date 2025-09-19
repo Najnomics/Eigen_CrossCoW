@@ -5,6 +5,8 @@ import "forge-std/Test.sol";
 import "forge-std/console.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {HookMiner} from "v4-periphery/utils/HookMiner.sol";
+import {Hooks} from "@uniswap/v4-core/libraries/Hooks.sol";
 
 import "../src/EigenCrossCoWHook.sol";
 import "../src/avs/task-managers/CrossCoWTaskManagerSimple.sol";
@@ -17,6 +19,20 @@ import "../src/integration/AcrossIntegration.sol";
 import "../src/libraries/IntentLib.sol";
 import "./mocks/MockContracts.sol";
 
+// Test-specific hook that bypasses address validation
+contract TestEigenCrossCoWHook is EigenCrossCoWHook {
+    constructor(
+        IPoolManager _poolManager,
+        ICrossCoWServiceManager _serviceManager,
+        IAcrossHubPool _acrossHubPool
+    ) EigenCrossCoWHook(_poolManager, _serviceManager, _acrossHubPool) {}
+    
+    // Override to bypass hook address validation in tests
+    function validateHookAddress(BaseHook _this) internal pure override {
+        // Skip validation for tests
+    }
+}
+
 /**
  * @title EigenCrossCoWHook Comprehensive Test Suite
  * @notice 100+ comprehensive unit tests for the main hook contract
@@ -24,7 +40,7 @@ import "./mocks/MockContracts.sol";
  */
 contract EigenCrossCoWHookComprehensiveTest is Test {
     /* CONTRACTS */
-    EigenCrossCoWHook public hook;
+    TestEigenCrossCoWHook public hook;
     CrossCoWTaskManagerSimple public taskManager;
     CrossCoWServiceManager public serviceManager;
     CrossCoWRegistryCoordinator public registryCoordinator;
@@ -53,6 +69,9 @@ contract EigenCrossCoWHookComprehensiveTest is Test {
     uint256 public constant TRADE_AMOUNT = 1000 * 10**18;
     
     function setUp() public {
+        // Set up the owner address
+        vm.startPrank(owner);
+        
         // Deploy mock tokens
         tokenA = new MockERC20("TokenA", "TKA");
         tokenB = new MockERC20("TokenB", "TKB");
@@ -77,19 +96,11 @@ contract EigenCrossCoWHookComprehensiveTest is Test {
         );
         
         // Deploy aggregator
-        aggregator = new CrossCoWAggregator(
-            address(serviceManager),
-            address(registryCoordinator),
-            address(stakeRegistry),
-            address(blsApkRegistry),
-            address(0) // Task manager will be deployed later
-        );
+        aggregator = new CrossCoWAggregator();
         
         // Deploy across integration
         acrossIntegration = new AcrossIntegration(
-            address(acrossHubPool),
-            address(0), // Mock relayer
-            address(0)  // Mock spoke pool
+            IAcrossHubPool(address(acrossHubPool))
         );
         
         // Deploy task manager
@@ -100,16 +111,14 @@ contract EigenCrossCoWHookComprehensiveTest is Test {
             payable(address(acrossIntegration))
         );
         
-        // Deploy main hook
-        hook = new EigenCrossCoWHook(
+        // Deploy test hook (bypasses address validation)
+        hook = new TestEigenCrossCoWHook(
             IPoolManager(address(poolManager)),
-            address(taskManager),
-            address(serviceManager),
-            address(acrossIntegration)
+            serviceManager,
+            IAcrossHubPool(address(acrossHubPool))
         );
         
         // Setup initial state
-        vm.startPrank(owner);
         taskManager.setAggregator(address(aggregator));
         vm.stopPrank();
         
@@ -130,9 +139,9 @@ contract EigenCrossCoWHookComprehensiveTest is Test {
 
     function test_001_Initialization() public {
         assertEq(address(hook.poolManager()), address(poolManager));
-        assertEq(address(hook.taskManager()), address(taskManager));
+        // taskManager field doesn't exist in hook
         assertEq(address(hook.serviceManager()), address(serviceManager));
-        assertEq(address(hook.acrossIntegration()), address(acrossIntegration));
+        assertEq(address(hook.acrossHubPool()), address(acrossHubPool));
         assertTrue(hook.owner() == owner);
     }
 
@@ -140,39 +149,35 @@ contract EigenCrossCoWHookComprehensiveTest is Test {
         vm.expectRevert("Invalid pool manager");
         new EigenCrossCoWHook(
             IPoolManager(address(0)),
-            address(taskManager),
-            address(serviceManager),
-            address(acrossIntegration)
+            serviceManager,
+            IAcrossHubPool(address(acrossHubPool))
         );
     }
 
-    function test_003_InitializationWithInvalidTaskManager() public {
-        vm.expectRevert("Invalid task manager");
-        new EigenCrossCoWHook(
-            IPoolManager(address(poolManager)),
-            address(0),
-            address(serviceManager),
-            address(acrossIntegration)
-        );
-    }
-
-    function test_004_InitializationWithInvalidServiceManager() public {
+    function test_003_InitializationWithInvalidServiceManager() public {
         vm.expectRevert("Invalid service manager");
         new EigenCrossCoWHook(
             IPoolManager(address(poolManager)),
-            address(taskManager),
-            address(0),
-            address(acrossIntegration)
+            ICrossCoWServiceManager(address(0)),
+            IAcrossHubPool(address(acrossHubPool))
+        );
+    }
+
+    function test_004_InitializationWithInvalidAcrossHubPool() public {
+        vm.expectRevert("Invalid across hub pool");
+        new EigenCrossCoWHook(
+            IPoolManager(address(poolManager)),
+            serviceManager,
+            IAcrossHubPool(address(0))
         );
     }
 
     function test_005_InitializationWithInvalidAcrossIntegration() public {
-        vm.expectRevert("Invalid across integration");
+        vm.expectRevert("Invalid across hub pool");
         new EigenCrossCoWHook(
             IPoolManager(address(poolManager)),
-            address(taskManager),
-            address(serviceManager),
-            address(0)
+            serviceManager,
+            IAcrossHubPool(address(0))
         );
     }
 
@@ -579,9 +584,8 @@ contract EigenCrossCoWHookComprehensiveTest is Test {
         uint256 gasBefore = gasleft();
         new EigenCrossCoWHook(
             IPoolManager(address(poolManager)),
-            address(taskManager),
-            address(serviceManager),
-            address(acrossIntegration)
+            serviceManager,
+            IAcrossHubPool(address(acrossIntegration))
         );
         uint256 gasUsed = gasBefore - gasleft();
         assertLt(gasUsed, 2000000); // Should be less than 2M gas

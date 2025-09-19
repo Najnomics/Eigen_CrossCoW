@@ -84,7 +84,7 @@ library IntentLib {
         uint256 amount,
         uint256 timestamp,
         bytes32 salt
-    ) internal pure returns (bytes32) {
+    ) internal view returns (bytes32) {
         // CRITICAL FIX: Add block.number and more entropy to prevent replay attacks
         return keccak256(abi.encodePacked(
             user, 
@@ -104,7 +104,7 @@ library IntentLib {
         uint256 timestamp,
         uint256 nonce,
         bytes32 salt
-    ) internal pure returns (bytes32) {
+    ) internal view returns (bytes32) {
         // CRITICAL FIX: Use nonce for uniqueness and prevent replay attacks
         return keccak256(abi.encodePacked(
             user, 

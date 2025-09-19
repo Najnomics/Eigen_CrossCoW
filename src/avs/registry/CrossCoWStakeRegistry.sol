@@ -17,7 +17,11 @@ import "../interfaces/IStakeRegistry.sol";
 contract CrossCoWStakeRegistry is Ownable, ReentrancyGuard, Pausable, IStakeRegistry {
     using SafeERC20 for IERC20;
     
-    constructor() Ownable(msg.sender) {}
+    constructor(address _stakeToken) Ownable(msg.sender) {
+        if (_stakeToken != address(0)) {
+            stakeToken = IERC20(_stakeToken);
+        }
+    }
 
     /* CONSTANTS */
     uint256 public constant MIN_STAKE = 1 ether;
@@ -69,6 +73,36 @@ contract CrossCoWStakeRegistry is Ownable, ReentrancyGuard, Pausable, IStakeRegi
 
     /**
      * @notice Register an operator with stake
+     * @param operator The operator address
+     * @param stake The stake amount
+     */
+    function registerOperator(
+        address operator,
+        uint256 stake
+    ) external {
+        require(!operatorStakes[operator].isActive, "Already registered");
+        require(stake >= MIN_STAKE, "Insufficient stake");
+        
+        // Generate operator ID
+        bytes32 operatorId = keccak256(abi.encodePacked(operator, block.timestamp));
+        
+        // Initialize operator stake
+        operatorStakes[operator] = OperatorStake({
+            amount: stake,
+            lastUpdateTime: block.timestamp,
+            isActive: true
+        });
+        
+        totalStakes[operator] = stake;
+        totalStake += stake;
+        stakedOperators.push(operator);
+        
+        emit OperatorRegistered(operator, stake);
+        emit StakeDeposited(operator, stake);
+    }
+    
+    /**
+     * @notice Register an operator with stake (interface implementation)
      * @param operator The operator address
      * @param operatorId The operator ID
      * @param stake The stake amount
@@ -141,7 +175,7 @@ contract CrossCoWStakeRegistry is Ownable, ReentrancyGuard, Pausable, IStakeRegi
      * @param operator The operator address
      * @param newStake The new stake amount
      */
-    function updateStake(address operator, uint256 newStake) external onlyValidOperator(operator) {
+    function updateStake(address operator, uint256 newStake) external payable onlyValidOperator(operator) {
         require(operator == msg.sender || msg.sender == owner(), "Not authorized");
         require(newStake >= MIN_STAKE, "Insufficient stake");
         require(newStake <= MAX_STAKE, "Excessive stake");
@@ -326,6 +360,13 @@ contract CrossCoWStakeRegistry is Ownable, ReentrancyGuard, Pausable, IStakeRegi
                 break;
             }
         }
+    }
+    
+    function deregisterOperator(address operator, bytes32 operatorId) external {
+        require(operatorStakes[operator].isActive, "Not registered");
+        operatorStakes[operator].isActive = false;
+        totalStake -= operatorStakes[operator].amount;
+        emit OperatorDeregistered(operator);
     }
 
     function updateOperatorStake(

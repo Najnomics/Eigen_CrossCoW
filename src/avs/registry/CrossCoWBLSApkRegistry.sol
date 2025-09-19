@@ -102,17 +102,18 @@ contract CrossCoWBLSApkRegistry is Ownable, ReentrancyGuard, Pausable, IBLSApkRe
         require(operatorKeys[operator].g1Pubkey.length > 0, "Must register BLS key first");
         // Implementation depends on quorum logic
     }
-
+    
     /**
      * @notice Register an operator with BLS public key (legacy function)
      * @param operator The operator address
      * @param opId The operator ID
      * @param key The BLS public key
      */
-    function registerOperatorWithKey(address operator, bytes32 opId, BLSPublicKey calldata key) 
-        external 
-        onlyValidKey(key)
-    {
+    function registerOperator(
+        address operator, 
+        bytes32 opId, 
+        BLSPublicKey calldata key
+    ) external onlyValidKey(key) {
         require(operatorKeys[operator].g1Pubkey.length == 0, "Already registered");
         require(operatorFromId[opId] == address(0), "ID already taken");
         require(totalOperators < MAX_OPERATORS, "Max operators reached");
@@ -129,6 +130,7 @@ contract CrossCoWBLSApkRegistry is Ownable, ReentrancyGuard, Pausable, IBLSApkRe
         emit OperatorRegistered(operator, opId, key);
     }
 
+
     /**
      * @notice Deregister an operator from quorums (interface implementation)
      * @param operator The operator address
@@ -136,6 +138,15 @@ contract CrossCoWBLSApkRegistry is Ownable, ReentrancyGuard, Pausable, IBLSApkRe
      */
     function deregisterOperator(address operator, uint8[] calldata quorumNumbers) external override {
         // Simplified implementation
+        require(operatorKeys[operator].g1Pubkey.length > 0, "Not registered");
+        _deregisterOperator(operator);
+    }
+    
+    /**
+     * @notice Deregister an operator (simplified version)
+     * @param operator The operator address
+     */
+    function deregisterOperator(address operator) external {
         require(operatorKeys[operator].g1Pubkey.length > 0, "Not registered");
         _deregisterOperator(operator);
     }

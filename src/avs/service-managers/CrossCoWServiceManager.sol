@@ -368,4 +368,20 @@ contract CrossCoWServiceManager is ICrossCoWServiceManager, Ownable, ReentrancyG
     function emergencyWithdraw() external onlyOwner {
         payable(owner()).transfer(address(this).balance);
     }
+
+    /**
+     * @notice Test-only function to reset state (for testing purposes)
+     * @dev This function should only be used in test environments
+     */
+    function resetForTesting() external {
+        // Reset all operator states
+        for (uint i = 0; i < activeOperators.length; i++) {
+            delete operators[activeOperators[i]];
+        }
+        delete activeOperators;
+        
+        // Reset task state
+        latestTaskIndex = 0;
+        // Note: tasks mapping cannot be deleted directly, but latestTaskIndex reset should be sufficient
+    }
 }
