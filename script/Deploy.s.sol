@@ -41,7 +41,7 @@ contract DeployScript is Script {
     bool public isTestnet = true;
     string public networkName;
     
-    function run() external {
+    function run() external virtual {
         // Get deployment parameters
         owner = vm.envOr("OWNER", msg.sender);
         aggregatorAddr = vm.envOr("AGGREGATOR", address(0x1234567890123456789012345678901234567890));
@@ -60,17 +60,7 @@ contract DeployScript is Script {
         console.log("Is Testnet:", isTestnet);
         
         // Deploy contracts
-        vm.startBroadcast(owner);
-        
-        _deployRegistryContracts();
-        _deployServiceManager();
-        _deployAggregator();
-        _deployTaskManager();
-        _deployAcrossIntegration();
-        _deployMainHook();
-        _configureContracts();
-        
-        vm.stopBroadcast();
+        _deployContracts();
         
         // Verify deployment
         _verifyDeployment();
@@ -167,6 +157,20 @@ contract DeployScript is Script {
         }
         
         console.log("Contracts configured successfully");
+    }
+    
+    function _deployContracts() internal {
+        vm.startBroadcast(owner);
+        
+        _deployRegistryContracts();
+        _deployServiceManager();
+        _deployAggregator();
+        _deployTaskManager();
+        _deployAcrossIntegration();
+        _deployMainHook();
+        _configureContracts();
+        
+        vm.stopBroadcast();
     }
     
     function _verifyDeployment() internal view {

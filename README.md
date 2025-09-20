@@ -20,7 +20,7 @@ This project integrates with **EigenLayer**, a decentralized protocol that enabl
 - **Uniswap V4 Integration**: Seamless integration with Uniswap V4's hook system
 - **BLS Signature Aggregation**: Efficient signature verification using BLS cryptography
 - **Stake-Based Security**: Economic security through restaked ETH
-- **Comprehensive Testing**: 318+ tests covering unit, integration, and fuzz testing
+- **Comprehensive Testing**: 251+ tests covering unit, integration, and fuzz testing
 
 ## 🎯 Problem Statement
 
@@ -199,28 +199,28 @@ This project is built using the following EigenLayer templates and development k
 
 ## 🧪 Testing & Coverage
 
-This project includes **318 comprehensive tests** across multiple categories:
+This project includes **251 comprehensive tests** across multiple categories:
 
 ### Test Statistics
-- **Total Tests**: 318
-- **Passing Tests**: 318 (100%)
+- **Total Tests**: 251
+- **Passing Tests**: 251 (100%)
 - **Test Coverage**: ~90-95% (estimated)
 
 ### Test Categories
 
-#### 1. **Unit Tests** (150+ tests)
+#### 1. **Unit Tests** (120+ tests)
 - Individual contract functionality
 - Edge cases and error conditions
 - Gas optimization validation
 - Access control verification
 
-#### 2. **Integration Tests** (100+ tests)
+#### 2. **Integration Tests** (80+ tests)
 - Cross-contract interactions
 - End-to-end workflows
 - Multi-chain scenarios
 - Performance benchmarks
 
-#### 3. **Fuzz Tests** (68+ tests)
+#### 3. **Fuzz Tests** (50+ tests)
 - Random input validation
 - State space exploration
 - Security vulnerability detection

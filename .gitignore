@@ -91,6 +91,51 @@ build/
 
 # Dependency directories
 
+# Backup files
+backup/
+*.backup
+*.bak
+
+# Deployment artifacts
+deployment-addresses.txt
+deployment-addresses.json
+broadcast/
+
+# Gas reports
+gas-report.txt
+gas-report.json
+
+# Coverage reports (additional formats)
+lcov.info
+coverage/
+
+# IDE specific
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+*~
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+
+# MacOS
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
 
 context/
 
