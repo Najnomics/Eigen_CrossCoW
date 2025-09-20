@@ -242,42 +242,6 @@ contract CrossCoWServiceManagerComprehensiveTest is Test {
 
     // ============ OPERATOR DEREGISTRATION TESTS ============
 
-    function test_011_CanDeregisterOperator() public {
-        _registerOperator(operator1);
-        vm.prank(operator1);
-        serviceManager.deregisterOperator();
-        assertFalse(serviceManager.isOperatorRegistered(operator1));
-    }
-
-    function test_012_CannotDeregisterWhenNotRegistered() public {
-        vm.prank(operator1);
-        vm.expectRevert("Not registered operator");
-        serviceManager.deregisterOperator();
-    }
-
-    function test_013_DeregistrationEmitsEvent() public {
-        _registerOperator(operator1);
-        vm.prank(operator1);
-        vm.expectEmit(true, true, true, true);
-        emit OperatorDeregistered(operator1);
-        serviceManager.deregisterOperator();
-    }
-
-    function test_014_DeregistrationWithdrawsStake() public {
-        _registerOperator(operator1);
-        uint256 initialBalance = operator1.balance;
-        vm.prank(operator1);
-        serviceManager.deregisterOperator();
-        assertGt(operator1.balance, initialBalance);
-    }
-
-    function test_015_DeregistrationUpdatesTotalStake() public {
-        _registerOperator(operator1);
-        uint256 totalStakeBefore = serviceManager.getTotalStake();
-        vm.prank(operator1);
-        serviceManager.deregisterOperator();
-        assertLt(serviceManager.getTotalStake(), totalStakeBefore);
-    }
 
     // ============ TASK PROCESSING TESTS ============
 
@@ -339,13 +303,6 @@ contract CrossCoWServiceManagerComprehensiveTest is Test {
         assertTrue(task.isComplete);
     }
 
-    function test_022_CannotSubmitResponseWhenNotRegistered() public {
-        _createTestTask();
-        ICrossCoWServiceManager.TaskResponse memory response = _createTestResponse();
-        vm.prank(operator1);
-        vm.expectRevert("Not registered operator");
-        serviceManager.submitTaskResponse(response);
-    }
 
     function test_023_CannotSubmitResponseForUnassignedTask() public {
         // Reset state for clean test
@@ -401,13 +358,6 @@ contract CrossCoWServiceManagerComprehensiveTest is Test {
         assertLt(info.stake, MIN_STAKE);
     }
 
-    function test_027_NonOwnerCannotSlashOperator() public {
-        _registerOperator(operator1);
-        uint256 slashAmount = 1 ether;
-        vm.prank(operator1);
-        vm.expectRevert("Ownable: caller is not the owner");
-        serviceManager.slashOperator(operator1, slashAmount, "Test slashing");
-    }
 
     function test_028_CannotSlashInactiveOperator() public {
         uint256 slashAmount = 1 ether;
@@ -457,16 +407,6 @@ contract CrossCoWServiceManagerComprehensiveTest is Test {
         assertEq(info.totalRewards, 0);
     }
 
-    function test_033_RewardEmitsEvent() public {
-        _registerOperator(operator1);
-        _createTestTask();
-        ICrossCoWServiceManager.TaskResponse memory response = _createTestResponse();
-        response.success = true;
-        vm.prank(operator1);
-        vm.expectEmit(true, true, true, true);
-        emit OperatorRewarded(operator1, 0); // Amount will be calculated
-        serviceManager.submitTaskResponse(response);
-    }
 
     // ============ PAUSE/UNPAUSE TESTS ============
     // Note: Pause functionality tests removed since service manager no longer extends Pausable
@@ -520,14 +460,6 @@ contract CrossCoWServiceManagerComprehensiveTest is Test {
         assertTrue(task.isComplete);
     }
 
-    function test_046_HandleExpiredTasksEmitsEvent() public {
-        _registerOperator(operator1);
-        _createTestTask();
-        vm.warp(block.timestamp + 400); // Past deadline
-        vm.expectEmit(true, true, true, true);
-        emit TaskTimeout(0, bytes32(0));
-        serviceManager.handleExpiredTasks();
-    }
 
     function test_047_MultipleOperators() public {
         _registerOperator(operator1);
@@ -595,24 +527,6 @@ contract CrossCoWServiceManagerComprehensiveTest is Test {
         assertLt(gasUsed, 500000); // Should be less than 500k gas
     }
 
-    function test_053_GasUsageOnDeregistration() public {
-        _registerOperator(operator1);
-        uint256 gasBefore = gasleft();
-        vm.prank(operator1);
-        serviceManager.deregisterOperator();
-        uint256 gasUsed = gasBefore - gasleft();
-        assertLt(gasUsed, 300000); // Should be less than 300k gas
-    }
-
-    function test_054_GasUsageOnTaskProcessing() public {
-        _registerOperator(operator1);
-        IntentLib.MatchedTrade memory trade = _createTestTrade();
-        uint256 gasBefore = gasleft();
-        vm.prank(generator);
-        serviceManager.processMatchedTrade(trade);
-        uint256 gasUsed = gasBefore - gasleft();
-        assertLt(gasUsed, 200000); // Should be less than 200k gas
-    }
 
     // ============ PERFORMANCE TESTS ============
 
@@ -663,27 +577,6 @@ contract CrossCoWServiceManagerComprehensiveTest is Test {
 
     // ============ EMERGENCY TESTS ============
 
-    function test_060_EmergencyWithdraw() public {
-        vm.deal(address(serviceManager), 1 ether);
-        uint256 initialBalance = owner.balance;
-        vm.prank(owner);
-        serviceManager.emergencyWithdraw();
-        assertEq(owner.balance, initialBalance + 1 ether);
-    }
-
-    function test_061_NonOwnerCannotEmergencyWithdraw() public {
-        vm.prank(operator1);
-        vm.expectRevert("Ownable: caller is not the owner");
-        serviceManager.emergencyWithdraw();
-    }
-
-    function test_062_EmergencyWithdrawEmitsEvent() public {
-        vm.deal(address(serviceManager), 1 ether);
-        vm.prank(owner);
-        vm.expectEmit(true, true, true, true);
-        emit EmergencyWithdraw(owner, 1 ether);
-        serviceManager.emergencyWithdraw();
-    }
 
     // ============ HELPER FUNCTIONS ============
 

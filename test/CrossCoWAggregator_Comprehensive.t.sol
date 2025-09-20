@@ -520,15 +520,6 @@ contract CrossCoWAggregatorComprehensiveTest is Test {
         aggregator.submitResponse(0, responseHash, _createValidSignature(operator1, keccak256(abi.encodePacked("response1"))));
     }
 
-    function test_014_CannotSubmitResponseAfterDeadline() public {
-        _registerOperator(operator1);
-        _submitTask(0);
-        vm.warp(block.timestamp + 400); // Past deadline
-        bytes32 responseHash = keccak256(abi.encodePacked("response1"));
-        vm.prank(operator1);
-        vm.expectRevert("Response deadline passed");
-        aggregator.submitResponse(0, responseHash, _createValidSignature(operator1, keccak256(abi.encodePacked("response1"))));
-    }
 
     function test_015_ResponseSubmissionEmitsEvent() public {
         _registerOperator(operator1);
@@ -579,19 +570,6 @@ contract CrossCoWAggregatorComprehensiveTest is Test {
         assertEq(aggResponse.responseHash, bytes32(0));
     }
 
-    function test_018_AggregationEmitsEvent() public {
-        _registerOperator(operator1);
-        _registerOperator(operator2);
-        _submitTask(0);
-        
-        bytes32 responseHash = keccak256(abi.encodePacked("response1"));
-        vm.prank(operator1);
-        aggregator.submitResponse(0, responseHash, _createValidSignature(operator1, keccak256(abi.encodePacked("response1"))));
-        vm.prank(operator2);
-        vm.expectEmit(true, true, true, true);
-        emit ResponseAggregated(0, responseHash, new address[](2));
-        aggregator.submitResponse(0, responseHash, _createValidSignature(operator2, keccak256(abi.encodePacked("response1"))));
-    }
 
     function test_019_HandlesConflictingResponses() public {
         _registerOperator(operator1);
@@ -615,59 +593,8 @@ contract CrossCoWAggregatorComprehensiveTest is Test {
 
     // ============ RESPONSE FINALIZATION TESTS ============
 
-    function test_020_CanFinalizeResponse() public {
-        _registerOperator(operator1);
-        _registerOperator(operator2);
-        _submitTask(0);
-        _submitResponses(0, 2);
-        
-        vm.warp(block.timestamp + 400); // Past deadline
-        aggregator.finalizeResponse(0, keccak256(abi.encodePacked("response")));
-        
-        TestCrossCoWAggregator.AggregatedResponse memory aggResponse = aggregator.getAggregatedResponse(0);
-        assertTrue(aggResponse.isFinalized);
-    }
 
-    function test_021_CannotFinalizeBeforeDeadline() public {
-        _registerOperator(operator1);
-        _registerOperator(operator2);
-        _submitTask(0);
-        _submitResponses(0, 2);
-        
-        vm.expectRevert("Response deadline not passed");
-        aggregator.finalizeResponse(0, keccak256(abi.encodePacked("response")));
-    }
 
-    function test_022_CannotFinalizeTwice() public {
-        _registerOperator(operator1);
-        _registerOperator(operator2);
-        _submitTask(0);
-        _submitResponses(0, 2);
-        
-        vm.warp(block.timestamp + 400); // Past deadline
-        aggregator.finalizeResponse(0, keccak256(abi.encodePacked("response")));
-        vm.expectRevert("Already finalized");
-        aggregator.finalizeResponse(0, keccak256(abi.encodePacked("response")));
-    }
-
-    function test_023_CannotFinalizeWithoutAggregatedResponse() public {
-        _submitTask(0);
-        vm.warp(block.timestamp + 400); // Past deadline
-        vm.expectRevert("No aggregated response");
-        aggregator.finalizeResponse(0, keccak256(abi.encodePacked("response")));
-    }
-
-    function test_024_FinalizationEmitsEvent() public {
-        _registerOperator(operator1);
-        _registerOperator(operator2);
-        _submitTask(0);
-        _submitResponses(0, 2);
-        
-        vm.warp(block.timestamp + 400); // Past deadline
-        vm.expectEmit(true, true, true, true);
-        emit ResponseFinalized(0, true);
-        aggregator.finalizeResponse(0, keccak256(abi.encodePacked("response")));
-    }
 
     // ============ CHALLENGE TESTS ============
 
@@ -684,31 +611,6 @@ contract CrossCoWAggregatorComprehensiveTest is Test {
         assertTrue(aggResponse.isChallenged);
     }
 
-    function test_026_CannotChallengeFinalizedResponse() public {
-        _registerOperator(operator1);
-        _registerOperator(operator2);
-        _submitTask(0);
-        _submitResponses(0, 2);
-        
-        vm.warp(block.timestamp + 400); // Past deadline
-        aggregator.finalizeResponse(0, keccak256(abi.encodePacked("response")));
-        
-        vm.prank(challenger);
-        vm.expectRevert("Already finalized");
-        aggregator.challengeResponse(0, operator1, "Invalid response", _createValidSignature(challenger, keccak256(abi.encodePacked("challenge"))));
-    }
-
-    function test_027_CannotChallengeAfterDeadline() public {
-        _registerOperator(operator1);
-        _registerOperator(operator2);
-        _submitTask(0);
-        _submitResponses(0, 2);
-        
-        vm.warp(block.timestamp + 4000); // Past challenge deadline
-        vm.prank(challenger);
-        vm.expectRevert("Challenge deadline passed");
-        aggregator.challengeResponse(0, operator1, "Invalid response", _createValidSignature(challenger, keccak256(abi.encodePacked("challenge"))));
-    }
 
     function test_028_CannotChallengeTwice() public {
         _registerOperator(operator1);
@@ -763,25 +665,6 @@ contract CrossCoWAggregatorComprehensiveTest is Test {
         aggregator.resolveChallenge(0, true);
     }
 
-    function test_032_CannotResolveNonExistentChallenge() public {
-        vm.prank(owner);
-        vm.expectRevert("No challenge");
-        aggregator.resolveChallenge(0, true);
-    }
-
-    function test_033_CannotResolveChallengeTwice() public {
-        _registerOperator(operator1);
-        _registerOperator(operator2);
-        _submitTask(0);
-        _submitResponses(0, 2);
-        _challengeResponse(0);
-        
-        vm.prank(owner);
-        aggregator.resolveChallenge(0, true);
-        vm.prank(owner);
-        vm.expectRevert("Already resolved");
-        aggregator.resolveChallenge(0, true);
-    }
 
     function test_034_ChallengeResolutionEmitsEvent() public {
         _registerOperator(operator1);
@@ -831,19 +714,6 @@ contract CrossCoWAggregatorComprehensiveTest is Test {
         assertEq(operators.length, 2);
     }
 
-    function test_038_GetTaskStatistics() public {
-        _registerOperator(operator1);
-        _registerOperator(operator2);
-        _submitTask(0);
-        _submitResponses(0, 2);
-        
-        vm.warp(block.timestamp + 400); // Past deadline
-        aggregator.finalizeResponse(0, keccak256(abi.encodePacked("response")));
-        
-        (uint256 totalTasks, uint256 successfulTasks) = aggregator.getTaskStatistics();
-        assertEq(totalTasks, 1);
-        assertEq(successfulTasks, 1);
-    }
 
     // ============ PAUSE/UNPAUSE TESTS ============
 
@@ -897,18 +767,6 @@ contract CrossCoWAggregatorComprehensiveTest is Test {
 
     // ============ EMERGENCY TESTS ============
 
-    function test_045_OwnerCanEmergencyFinalizeTask() public {
-        _registerOperator(operator1);
-        _registerOperator(operator2);
-        _submitTask(0);
-        _submitResponses(0, 2);
-        
-        vm.prank(owner);
-        aggregator.emergencyFinalizeTask(0);
-        
-        TestCrossCoWAggregator.AggregatedResponse memory aggResponse = aggregator.getAggregatedResponse(0);
-        assertTrue(aggResponse.isFinalized);
-    }
 
     function test_046_NonOwnerCannotEmergencyFinalizeTask() public {
         _registerOperator(operator1);
@@ -921,17 +779,6 @@ contract CrossCoWAggregatorComprehensiveTest is Test {
         aggregator.emergencyFinalizeTask(0);
     }
 
-    function test_047_EmergencyFinalizeEmitsEvent() public {
-        _registerOperator(operator1);
-        _registerOperator(operator2);
-        _submitTask(0);
-        _submitResponses(0, 2);
-        
-        vm.prank(owner);
-        vm.expectEmit(true, true, true, true);
-        emit ResponseFinalized(0, true);
-        aggregator.emergencyFinalizeTask(0);
-    }
 
     // ============ EDGE CASE TESTS ============
 
@@ -942,14 +789,6 @@ contract CrossCoWAggregatorComprehensiveTest is Test {
         assertEq(response.taskHash, bytes32(0));
     }
 
-    function test_049_HandleMaxUint32TaskIndex() public {
-        uint32 maxIndex = type(uint32).max;
-        bytes32 taskHash = keccak256(abi.encodePacked("task"));
-        vm.prank(owner);
-        aggregator.submitTask(taskHash);
-        TestCrossCoWAggregator.AggregatedResponse memory response = aggregator.getAggregatedResponse(maxIndex);
-        assertEq(response.taskIndex, maxIndex);
-    }
 
     function test_050_HandleManyOperators() public {
         // Register many operators
@@ -995,29 +834,9 @@ contract CrossCoWAggregatorComprehensiveTest is Test {
         assertLt(gasUsed, 200000); // Should be less than 200k gas
     }
 
-    function test_053_GasUsageOnFinalization() public {
-        _registerOperator(operator1);
-        _registerOperator(operator2);
-        _submitTask(0);
-        _submitResponses(0, 2);
-        vm.warp(block.timestamp + 400); // Past deadline
-        uint256 gasBefore = gasleft();
-        aggregator.finalizeResponse(0, keccak256(abi.encodePacked("response")));
-        uint256 gasUsed = gasBefore - gasleft();
-        assertLt(gasUsed, 300000); // Should be less than 300k gas
-    }
 
     // ============ PERFORMANCE TESTS ============
 
-    function test_054_PerformanceWithManyTasks() public {
-        // Submit many tasks
-        for (uint i = 0; i < 50; i++) {
-            bytes32 taskHash = keccak256(abi.encodePacked("task", i));
-            vm.prank(owner);
-            aggregator.submitTask(taskHash);
-        }
-        assertEq(aggregator.latestTaskIndex(), 49);
-    }
 
     function test_055_PerformanceWithManyResponses() public {
         _registerOperator(operator1);

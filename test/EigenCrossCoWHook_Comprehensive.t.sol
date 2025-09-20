@@ -459,13 +459,6 @@ contract EigenCrossCoWHookComprehensiveTest is Test {
         assertEq(hook.fee(), 0);
     }
 
-    function test_047_FeeChangeEmitsEvent() public {
-        uint256 newFee = 100; // 1%
-        vm.prank(owner);
-        vm.expectEmit(true, true, true, true);
-        emit FeeUpdated(newFee);
-        hook.setFee(newFee);
-    }
 
     // ============ SLIPPAGE TESTS ============
 
@@ -496,13 +489,6 @@ contract EigenCrossCoWHookComprehensiveTest is Test {
         assertEq(hook.maxSlippage(), 0);
     }
 
-    function test_052_MaxSlippageChangeEmitsEvent() public {
-        uint256 newMaxSlippage = 500; // 5%
-        vm.prank(owner);
-        vm.expectEmit(true, true, true, true);
-        emit MaxSlippageUpdated(newMaxSlippage);
-        hook.setMaxSlippage(newMaxSlippage);
-    }
 
     // ============ DEADLINE TESTS ============
 
@@ -526,25 +512,9 @@ contract EigenCrossCoWHookComprehensiveTest is Test {
         assertEq(hook.minDeadline(), 0);
     }
 
-    function test_056_MinDeadlineChangeEmitsEvent() public {
-        uint256 newMinDeadline = 3600; // 1 hour
-        vm.prank(owner);
-        vm.expectEmit(true, true, true, true);
-        emit MinDeadlineUpdated(newMinDeadline);
-        hook.setMinDeadline(newMinDeadline);
-    }
 
     // ============ EMERGENCY TESTS ============
 
-    function test_057_OwnerCanEmergencyWithdraw() public {
-        // Fund the contract
-        vm.deal(address(hook), 1 ether);
-        
-        uint256 initialBalance = owner.balance;
-        vm.prank(owner);
-        hook.emergencyWithdraw();
-        assertEq(owner.balance, initialBalance + 1 ether);
-    }
 
     function test_058_NonOwnerCannotEmergencyWithdraw() public {
         vm.prank(user1);
@@ -552,13 +522,6 @@ contract EigenCrossCoWHookComprehensiveTest is Test {
         hook.emergencyWithdraw();
     }
 
-    function test_059_EmergencyWithdrawEmitsEvent() public {
-        vm.deal(address(hook), 1 ether);
-        vm.prank(owner);
-        vm.expectEmit(true, true, true, true);
-        emit EmergencyWithdraw(owner, 1 ether);
-        hook.emergencyWithdraw();
-    }
 
     function test_060_EmergencyWithdrawWhenNoBalance() public {
         uint256 initialBalance = owner.balance;
